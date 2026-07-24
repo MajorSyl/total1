@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Mall Expiry Tracker",
+    "slug": "mall-expiry-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sylexpress.mallexpirytracker",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera access is needed to scan product barcodes."
+      }
+    },
+    "android": {
+      "package": "com.sylexpress.mallexpirytracker",
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan barcodes."
+        }
+      ]
+    ]
+  }
+}
