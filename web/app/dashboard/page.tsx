@@ -17,37 +17,19 @@ type ExpiringBatch = {
   status: "active" | "expired";
 };
 
-// Freshness window used to scale the bar — batches beyond this just show full green
-const FRESHNESS_WINDOW_DAYS = 30;
-
-function freshnessColor(days: number) {
-  if (days <= 0) return "var(--danger)";
-  if (days <= 3) return "var(--danger)";
-  if (days <= 7) return "var(--warning)";
-  return "var(--safe)";
+function statusColor(days: number) {
+  if (days <= 0) return { fg: "#DC2626", bg: "#FEE2E2" };
+  if (days <= 3) return { fg: "#DC2626", bg: "#FEE2E2" };
+  if (days <= 7) return { fg: "#D97706", bg: "#FEF3C7" };
+  return { fg: "#16A34A", bg: "#DCFCE7" };
 }
 
-function FreshnessBar({ days }: { days: number }) {
-  const pct = Math.max(0, Math.min(100, (days / FRESHNESS_WINDOW_DAYS) * 100));
-  const color = freshnessColor(days);
-  const label = days <= 0 ? "Expired" : `${days}d left`;
-
-  return (
-    <div className="flex items-center gap-3 min-w-[160px]">
-      <div className="relative h-1.5 flex-1 rounded-full bg-[var(--border)] overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
-      </div>
-      <span
-        className="font-mono text-xs tabular-nums whitespace-nowrap"
-        style={{ color }}
-      >
-        {label}
-      </span>
-    </div>
-  );
+function initials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
 }
 
 export default function DashboardPage() {
@@ -85,7 +67,6 @@ export default function DashboardPage() {
 
     load();
 
-    // Live updates: refresh whenever batches change
     const channel = supabase
       .channel("dashboard-batches")
       .on("postgres_changes", { event: "*", schema: "public", table: "batches" }, load)
@@ -107,167 +88,275 @@ export default function DashboardPage() {
     () => ({
       expired: batches.filter((b) => b.status === "expired").length,
       urgent: batches.filter((b) => b.days_remaining > 0 && b.days_remaining <= 3).length,
+      fresh: batches.filter((b) => b.days_remaining > 7).length,
       total: batches.length,
     }),
     [batches]
   );
 
+  const categoryBreakdown = useMemo(() => {
+    const map: Record<string, number> = {};
+    filtered.forEach((b) => {
+      const cat = b.category ?? "Uncategorized";
+      map[cat] = (map[cat] ?? 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
+  }, [filtered]);
+
   return (
     <div
-      className="min-h-screen px-8 py-10"
-      style={{
-        // Design tokens — see design plan in project notes
-        // @ts-ignore CSS custom properties
-        "--bg": "#14161A",
-        "--surface": "#1B1E24",
-        "--surface-alt": "#22262E",
-        "--border": "#2A2F38",
-        "--text": "#E7E9EC",
-        "--text-muted": "#8A909B",
-        "--accent": "#5B8DEF",
-        "--danger": "#E5484D",
-        "--warning": "#F5A623",
-        "--safe": "#34D399",
-        backgroundColor: "var(--bg)",
-        color: "var(--text)",
-        fontFamily: "Inter, system-ui, sans-serif",
-      }}
+      className="min-h-screen px-6 py-8 max-w-md mx-auto md:max-w-2xl"
+      style={{ backgroundColor: "#F4F6FA", color: "#14171F", fontFamily: "Inter, system-ui, sans-serif" }}
     >
-      <header className="mb-10 flex items-end justify-between">
+      {/* Header */}
+      <header className="flex items-center justify-between mb-6">
         <div>
-          <p
-            className="text-xs uppercase tracking-[0.2em] mb-2"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Inventory freshness
+          <p className="text-sm" style={{ color: "#6B7280" }}>
+            Welcome back,
           </p>
-          <h1
-            className="text-3xl font-semibold tracking-tight"
-            style={{ fontFamily: "'Space Grotesk', Inter, system-ui, sans-serif" }}
-          >
-            Expiry dashboard
-          </h1>
+          <h1 className="text-lg font-semibold">Manager</h1>
         </div>
-        <div className="flex items-center gap-6">
-          <p className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-            {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-          </p>
-          <button
-            onClick={handleSignOut}
-            className="text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors"
-            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-          >
-            Sign out
-          </button>
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
+        >
+          🔔
         </div>
       </header>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-10">
-        <SummaryCard label="Expired" value={counts.expired} color="var(--danger)" active={filter === "expired"} onClick={() => setFilter(filter === "expired" ? "all" : "expired")} />
-        <SummaryCard label="Urgent (≤3 days)" value={counts.urgent} color="var(--warning)" active={filter === "urgent"} onClick={() => setFilter(filter === "urgent" ? "all" : "urgent")} />
-        <SummaryCard label="Total tracked" value={counts.total} color="var(--accent)" active={filter === "all"} onClick={() => setFilter("all")} />
+      {/* Hero card */}
+      <div
+        className="rounded-3xl p-6 mb-6 text-white"
+        style={{
+          background: "linear-gradient(135deg, #2F5FE0 0%, #4C7DFF 100%)",
+          boxShadow: "0 8px 24px rgba(47,95,224,0.25)",
+        }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm text-white/80">Total Batches Tracked</p>
+          <span
+            className="text-xs font-medium px-2 py-1 rounded-full"
+            style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+          >
+            {counts.fresh} fresh
+          </span>
+        </div>
+        <p className="text-4xl font-bold mb-5">{counts.total}</p>
+        <div className="flex gap-3">
+          <button
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
+            style={{ backgroundColor: "#FFFFFF", color: "#2F5FE0" }}
+          >
+            Scan product
+          </button>
+          <button
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white"
+            style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+          >
+            View alerts
+          </button>
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Insights */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-[15px]">Expiry Insights</h2>
+        <span className="text-sm font-medium" style={{ color: "#2F5FE0" }}>
+          View all
+        </span>
+      </div>
+      <div className="space-y-3 mb-6">
+        {counts.expired > 0 && (
+          <InsightCard
+            icon="⚠️"
+            iconBg="#FEE2E2"
+            title={`${counts.expired} batch${counts.expired === 1 ? "" : "es"} already expired`}
+            body="These should be pulled from shelves and marked disposed today."
+          />
+        )}
+        {counts.urgent > 0 && (
+          <InsightCard
+            icon="⏳"
+            iconBg="#FEF3C7"
+            title={`${counts.urgent} expiring within 3 days`}
+            body="Consider discounting these to move stock before they turn over."
+          />
+        )}
+        {counts.expired === 0 && counts.urgent === 0 && (
+          <InsightCard
+            icon="✅"
+            iconBg="#DCFCE7"
+            title="Nothing urgent right now"
+            body="No batches are expired or expiring within 3 days."
+          />
+        )}
+      </div>
+
+      {/* Category breakdown */}
+      {categoryBreakdown.length > 0 && (
+        <>
+          <h2 className="font-semibold text-[15px] mb-3">Breakdown by category</h2>
+          <div
+            className="rounded-2xl p-5 mb-6"
+            style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+          >
+            {categoryBreakdown.map(([cat, count]) => {
+              const pct = Math.round((count / filtered.length) * 100);
+              return (
+                <div key={cat} className="mb-4 last:mb-0">
+                  <div className="flex items-center justify-between mb-1.5 text-sm">
+                    <span className="font-medium">{cat}</span>
+                    <span style={{ color: "#6B7280" }}>
+                      {count} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full" style={{ backgroundColor: "#EEF1F6" }}>
+                    <div
+                      className="h-2 rounded-full"
+                      style={{ width: `${pct}%`, backgroundColor: "#2F5FE0" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Filter pills */}
+      <div className="flex gap-2 mb-3">
+        {(["all", "urgent", "expired"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className="px-4 py-1.5 rounded-full text-sm font-medium capitalize"
+            style={
+              filter === f
+                ? { backgroundColor: "#2F5FE0", color: "#FFFFFF" }
+                : { backgroundColor: "#FFFFFF", color: "#6B7280", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }
+            }
+          >
+            {f === "all" ? "All batches" : f}
+          </button>
+        ))}
+      </div>
+
+      {/* Batch list */}
       <div
-        className="rounded-xl overflow-hidden border"
-        style={{ borderColor: "var(--border)", backgroundColor: "var(--surface)" }}
+        className="rounded-2xl overflow-hidden"
+        style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
       >
         {loading && (
-          <p className="p-6 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="p-6 text-sm" style={{ color: "#6B7280" }}>
             Loading batches…
           </p>
         )}
         {error && (
-          <p className="p-6 text-sm" style={{ color: "var(--danger)" }}>
+          <p className="p-6 text-sm" style={{ color: "#DC2626" }}>
             Couldn't load data: {error}
           </p>
         )}
         {!loading && !error && filtered.length === 0 && (
-          <p className="p-6 text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="p-6 text-sm" style={{ color: "#6B7280" }}>
             Nothing here. Everything in this view is fresh.
           </p>
         )}
-        {!loading && !error && filtered.length > 0 && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ backgroundColor: "var(--surface-alt)" }}>
-                {["Product", "Store", "Batch", "Qty", "Expires", "Freshness"].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wide"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((b) => (
-                <tr
-                  key={b.batch_id}
-                  className="border-t"
-                  style={{ borderColor: "var(--border)" }}
+        {!loading &&
+          !error &&
+          filtered.map((b, i) => {
+            const { fg, bg } = statusColor(b.days_remaining);
+            const label = b.days_remaining <= 0 ? "Expired" : `${b.days_remaining}d left`;
+            return (
+              <div
+                key={b.batch_id}
+                className="flex items-center gap-3 px-5 py-4"
+                style={{ borderTop: i === 0 ? "none" : "1px solid #F0F1F5" }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                  style={{ backgroundColor: "#EEF1F6", color: "#2F5FE0" }}
                 >
-                  <td className="px-5 py-3">
-                    <div className="font-medium">{b.product_name}</div>
-                    <div className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                      {b.barcode}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3" style={{ color: "var(--text-muted)" }}>
-                    {b.store_name}
-                  </td>
-                  <td className="px-5 py-3 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                    {b.batch_number ?? "—"}
-                  </td>
-                  <td className="px-5 py-3 font-mono tabular-nums">{b.quantity}</td>
-                  <td className="px-5 py-3 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                  {initials(b.product_name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[14px] truncate">{b.product_name}</p>
+                  <p className="text-xs" style={{ color: "#6B7280" }}>
+                    {b.category ?? "Uncategorized"} · {b.store_name}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-mono mb-1" style={{ color: "#6B7280" }}>
                     {b.expiry_date}
-                  </td>
-                  <td className="px-5 py-3">
-                    <FreshnessBar days={b.days_remaining} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                  </p>
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ color: fg, backgroundColor: bg }}
+                  >
+                    {label}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
       </div>
+
+      {/* Bottom tab bar */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 flex justify-around py-3 border-t"
+        style={{ backgroundColor: "#FFFFFF", borderColor: "#F0F1F5" }}
+      >
+        {[
+          { icon: "🏠", label: "Home" },
+          { icon: "📦", label: "Batches" },
+          { icon: "🔔", label: "Alerts" },
+          { icon: "👤", label: "Sign out" },
+        ].map((t, i) => (
+          <button
+            key={t.label}
+            onClick={i === 3 ? handleSignOut : undefined}
+            className="flex flex-col items-center gap-0.5 text-xs"
+            style={{ color: i === 0 ? "#2F5FE0" : "#9CA3AF" }}
+          >
+            <span>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      <div className="h-16" />
     </div>
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  color,
-  active,
-  onClick,
+function InsightCard({
+  icon,
+  iconBg,
+  title,
+  body,
 }: {
-  label: string;
-  value: number;
-  color: string;
-  active: boolean;
-  onClick: () => void;
+  icon: string;
+  iconBg: string;
+  title: string;
+  body: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="text-left rounded-xl border p-5 transition-colors"
-      style={{
-        borderColor: active ? color : "var(--border)",
-        backgroundColor: "var(--surface)",
-      }}
+    <div
+      className="flex gap-3 rounded-2xl p-4"
+      style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
     >
-      <p className="text-xs uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </p>
-      <p className="text-3xl font-semibold font-mono tabular-nums" style={{ color }}>
-        {value}
-      </p>
-    </button>
+      <div
+        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm"
+        style={{ backgroundColor: iconBg }}
+      >
+        {icon}
+      </div>
+      <div>
+        <p className="font-medium text-[14px] mb-0.5">{title}</p>
+        <p className="text-xs" style={{ color: "#6B7280" }}>
+          {body}
+        </p>
+      </div>
+    </div>
   );
 }

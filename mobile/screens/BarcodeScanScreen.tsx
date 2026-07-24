@@ -1,5 +1,4 @@
 // screens/BarcodeScanScreen.tsx
-// Install: npx expo install expo-camera
 
 import React, { useState, useRef } from "react";
 import {
@@ -26,7 +25,7 @@ export default function BarcodeScanScreen({ navigation }: any) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const lockRef = useRef(false); // prevents double-fires from rapid re-scans
+  const lockRef = useRef(false);
 
   if (!permission) {
     return <View style={styles.center}><ActivityIndicator /></View>;
@@ -59,17 +58,14 @@ export default function BarcodeScanScreen({ navigation }: any) {
       if (error) throw error;
 
       if (product) {
-        // Known product — go straight to batch entry
         navigation.navigate("BatchEntry", { product });
       } else {
-        // Unknown barcode — go to new-product creation, pre-filling the barcode
         navigation.navigate("NewProduct", { barcode: data });
       }
     } catch (err: any) {
       Alert.alert("Lookup failed", err.message ?? "Please try again.");
     } finally {
       setLoading(false);
-      // Allow re-scanning after a short cooldown
       setTimeout(() => {
         lockRef.current = false;
         setScanned(false);
@@ -107,7 +103,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
   message: { textAlign: "center", marginBottom: 16, fontSize: 16 },
-  button: { backgroundColor: "#2563eb", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
+  button: { backgroundColor: "#2F5FE0", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   buttonText: { color: "#fff", fontWeight: "600" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -117,9 +113,9 @@ const styles = StyleSheet.create({
   scanFrame: {
     width: 260,
     height: 160,
-    borderWidth: 2,
-    borderColor: "#22c55e",
-    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: "#4C7DFF",
+    borderRadius: 16,
     backgroundColor: "transparent",
   },
   hint: { color: "#fff", marginTop: 16, fontSize: 14 },

@@ -1,5 +1,4 @@
 // screens/BatchEntryScreen.tsx
-// Install: npx expo install @react-native-community/datetimepicker
 
 import React, { useState } from "react";
 import {
@@ -13,6 +12,7 @@ import {
   ScrollView,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../lib/supabase";
 
 export default function BatchEntryScreen({ route, navigation }: any) {
@@ -21,7 +21,7 @@ export default function BatchEntryScreen({ route, navigation }: any) {
   const [quantity, setQuantity] = useState("");
   const [batchNumber, setBatchNumber] = useState("");
   const [expiryDate, setExpiryDate] = useState<Date>(
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // default: 7 days out
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   );
   const [showPicker, setShowPicker] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -34,7 +34,6 @@ export default function BatchEntryScreen({ route, navigation }: any) {
 
     setSaving(true);
     try {
-      // storeId + registeredBy should come from auth/session context in the real app
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -70,9 +69,16 @@ export default function BatchEntryScreen({ route, navigation }: any) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.productCard}>
-        <Text style={styles.productName}>{product.name}</Text>
-        <Text style={styles.productMeta}>Barcode: {product.barcode}</Text>
-        {product.category && <Text style={styles.productMeta}>Category: {product.category}</Text>}
+        <View style={styles.productBadge}>
+          <Text style={styles.productBadgeText}>
+            {product.name.split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join("")}
+          </Text>
+        </View>
+        <View>
+          <Text style={styles.productName}>{product.name}</Text>
+          <Text style={styles.productMeta}>Barcode: {product.barcode}</Text>
+          {product.category && <Text style={styles.productMeta}>{product.category}</Text>}
+        </View>
       </View>
 
       <Text style={styles.label}>Quantity{product.unit ? ` (${product.unit})` : ""}</Text>
@@ -82,6 +88,7 @@ export default function BatchEntryScreen({ route, navigation }: any) {
         value={quantity}
         onChangeText={setQuantity}
         placeholder="e.g. 24"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.label}>Batch / lot number (optional)</Text>
@@ -90,6 +97,7 @@ export default function BatchEntryScreen({ route, navigation }: any) {
         value={batchNumber}
         onChangeText={setBatchNumber}
         placeholder="e.g. LOT-2026-0714"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.label}>Expiry date</Text>
@@ -103,57 +111,82 @@ export default function BatchEntryScreen({ route, navigation }: any) {
           minimumDate={new Date()}
           display={Platform.OS === "ios" ? "spinner" : "default"}
           onChange={(_, date) => {
-            setShowPicker(Platform.OS === "ios"); // iOS spinner stays open until dismissed
+            setShowPicker(Platform.OS === "ios");
             if (date) setExpiryDate(date);
           }}
         />
       )}
 
-      <TouchableOpacity
-        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={saving}
-      >
-        <Text style={styles.saveButtonText}>{saving ? "Saving…" : "Save batch"}</Text>
+      <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.85}>
+        <LinearGradient
+          colors={saving ? ["#93c5fd", "#93c5fd"] : ["#2F5FE0", "#4C7DFF"]}
+          style={styles.saveButton}
+        >
+          <Text style={styles.saveButtonText}>{saving ? "Saving…" : "Save batch"}</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: "#fff", flexGrow: 1 },
+  container: { padding: 20, backgroundColor: "#F4F6FA", flexGrow: 1 },
   productCard: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  productName: { fontSize: 18, fontWeight: "700", color: "#111827" },
-  productMeta: { fontSize: 13, color: "#6b7280", marginTop: 2 },
-  label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 6, marginTop: 12 },
+  productBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#EEF1F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  productBadgeText: { color: "#2F5FE0", fontWeight: "700", fontSize: 14 },
+  productName: { fontSize: 16, fontWeight: "700", color: "#111827" },
+  productMeta: { fontSize: 12, color: "#6b7280", marginTop: 2 },
+  label: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6, marginTop: 14 },
   input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
+    color: "#14171F",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   dateButton: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   dateButtonText: { fontSize: 16, color: "#111827" },
   saveButton: {
-    backgroundColor: "#2563eb",
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 15,
     alignItems: "center",
     marginTop: 28,
   },
-  saveButtonDisabled: { backgroundColor: "#93c5fd" },
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

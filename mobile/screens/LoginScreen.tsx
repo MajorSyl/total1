@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../lib/supabase";
 
 export default function LoginScreen({ navigation }: any) {
@@ -32,7 +33,6 @@ export default function LoginScreen({ navigation }: any) {
       });
       if (error) throw error;
 
-      // Confirm this auth user has a matching staff record before letting them in
       const { data: staffRow, error: staffError } = await supabase
         .from("staff")
         .select("id, full_name, role, store_id")
@@ -59,63 +59,86 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <Text style={styles.title}>Staff sign in</Text>
-      <Text style={styles.subtitle}>Sign in to start scanning and registering batches.</Text>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <LinearGradient colors={["#2F5FE0", "#4C7DFF"]} style={styles.hero}>
+        <Text style={styles.heroEyebrow}>Mall Expiry Tracker</Text>
+        <Text style={styles.heroTitle}>Staff sign in</Text>
+        <Text style={styles.heroSubtitle}>Sign in to start scanning and registering batches.</Text>
+      </LinearGradient>
 
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        placeholder="you@mall.com"
-      />
+      <View style={styles.card}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholder="you@mall.com"
+          placeholderTextColor="#9CA3AF"
+        />
 
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        placeholder="••••••••"
-      />
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          placeholder="••••••••"
+          placeholderTextColor="#9CA3AF"
+        />
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>{loading ? "Signing in…" : "Sign in"}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={handleLogin} disabled={loading} activeOpacity={0.85}>
+          <LinearGradient
+            colors={loading ? ["#93c5fd", "#93c5fd"] : ["#2F5FE0", "#4C7DFF"]}
+            style={styles.button}
+          >
+            <Text style={styles.buttonText}>{loading ? "Signing in…" : "Sign in"}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#fff" },
-  title: { fontSize: 24, fontWeight: "700", color: "#111827" },
-  subtitle: { fontSize: 14, color: "#6b7280", marginTop: 6, marginBottom: 28 },
-  label: { fontSize: 14, fontWeight: "600", color: "#374151", marginBottom: 6, marginTop: 14 },
+  screen: { flex: 1, backgroundColor: "#F4F6FA" },
+  hero: {
+    paddingTop: 80,
+    paddingBottom: 48,
+    paddingHorizontal: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  heroEyebrow: { color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: "600", marginBottom: 8 },
+  heroTitle: { color: "#fff", fontSize: 28, fontWeight: "700" },
+  heroSubtitle: { color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 8 },
+  card: {
+    marginTop: -24,
+    marginHorizontal: 20,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  label: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 6, marginTop: 14 },
   input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    backgroundColor: "#F4F6FA",
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+    color: "#14171F",
   },
   button: {
-    backgroundColor: "#2563eb",
-    borderRadius: 8,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 15,
     alignItems: "center",
     marginTop: 28,
   },
-  buttonDisabled: { backgroundColor: "#93c5fd" },
   buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });
