@@ -1,10 +1,7 @@
-// App.tsx — root navigation for the mobile app
-// Install: npx expo install @react-navigation/native @react-navigation/native-stack react-native-screens react-native-safe-area-context
-
-import React, { useEffect, useState } from "react";
+import React, { Component, useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { supabase } from "./lib/supabase";
 
 import LoginScreen from "./screens/LoginScreen";
@@ -21,7 +18,35 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function App() {
+// Catches any render-time JS error and shows it on screen in production.
+class ErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { error: string | null }
+> {
+  state = { error: null };
+  static getDerivedStateFromError(err: unknown) {
+    return { error: String(err) };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <ScrollView
+          contentContainerStyle={{ flex: 1, padding: 24, backgroundColor: "#fff" }}
+        >
+          <Text style={{ color: "#DC2626", fontSize: 16, fontWeight: "700", marginBottom: 12 }}>
+            App error — please screenshot and share this:
+          </Text>
+          <Text style={{ fontFamily: "monospace", fontSize: 12, color: "#111" }}>
+            {this.state.error}
+          </Text>
+        </ScrollView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AppNavigator() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
 
@@ -60,5 +85,13 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppNavigator />
+    </ErrorBoundary>
   );
 }
