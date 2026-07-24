@@ -5,16 +5,19 @@
   },
   "build": {
     "preview": {
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       }
     },
     "preview-ios": {
+      "channel": "preview",
       "ios": {
         "simulator": true
       }
     },
     "production": {
+      "channel": "production",
       "autoIncrement": true
     }
   },

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Total Expiry",
+    "name": "Total Mundo",
     "slug": "mall-expiry-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,22 +9,37 @@
     "splash": {
       "backgroundColor": "#ffffff"
     },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sylexpress.mallexpirytracker",
       "infoPlist": {
-        "NSCameraUsageDescription": "Camera access is needed to scan product barcodes."
+        "NSCameraUsageDescription": "Se necesita acceso a la cámara para escanear códigos de barras.",
+        "NSUserNotificationsUsageDescription": "Total Mundo necesita enviarte alertas de vencimiento de productos."
       }
     },
     "android": {
       "package": "com.sylexpress.mallexpirytracker",
-      "permissions": ["CAMERA"]
+      "permissions": ["CAMERA", "RECEIVE_BOOT_COMPLETED", "VIBRATE"]
     },
     "plugins": [
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan barcodes."
+          "cameraPermission": "Permite que $(PRODUCT_NAME) acceda a tu cámara para escanear códigos de barras."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2F5FE0",
+          "sounds": []
         }
       ]
     ]

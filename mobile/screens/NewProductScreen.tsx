@@ -1,5 +1,3 @@
-// screens/NewProductScreen.tsx
-
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,7 +13,7 @@ export default function NewProductScreen({ route, navigation }: any) {
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      Alert.alert("Missing name", "Enter a product name.");
+      Alert.alert("Nombre requerido", "Ingresa el nombre del producto.");
       return;
     }
 
@@ -23,7 +21,12 @@ export default function NewProductScreen({ route, navigation }: any) {
     try {
       const { data: product, error } = await supabase
         .from("products")
-        .insert({ barcode, name: name.trim(), category: category.trim() || null, unit: unit.trim() || null })
+        .insert({
+          barcode,
+          name: name.trim(),
+          category: category.trim() || null,
+          unit: unit.trim() || null,
+        })
         .select()
         .single();
 
@@ -31,7 +34,7 @@ export default function NewProductScreen({ route, navigation }: any) {
 
       navigation.replace("BatchEntry", { product });
     } catch (err: any) {
-      Alert.alert("Could not create product", err.message ?? "Please try again.");
+      Alert.alert("No se pudo crear el producto", err.message ?? "Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -39,21 +42,42 @@ export default function NewProductScreen({ route, navigation }: any) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>New product</Text>
-      <Text style={styles.subtitle}>Barcode {barcode} isn't registered yet.</Text>
+      <Text style={styles.title}>Nuevo producto</Text>
+      <Text style={styles.subtitle}>El código {barcode} no está registrado todavía.</Text>
 
-      <Text style={styles.label}>Product name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Whole Milk 1L" placeholderTextColor="#9CA3AF" />
+      <Text style={styles.label}>Nombre del producto</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="ej. Leche Entera 1L"
+        placeholderTextColor="#9CA3AF"
+      />
 
-      <Text style={styles.label}>Category</Text>
-      <TextInput style={styles.input} value={category} onChangeText={setCategory} placeholder="e.g. Dairy" placeholderTextColor="#9CA3AF" />
+      <Text style={styles.label}>Categoría</Text>
+      <TextInput
+        style={styles.input}
+        value={category}
+        onChangeText={setCategory}
+        placeholder="ej. Lácteos"
+        placeholderTextColor="#9CA3AF"
+      />
 
-      <Text style={styles.label}>Unit</Text>
-      <TextInput style={styles.input} value={unit} onChangeText={setUnit} placeholder="e.g. bottle, kg, box" placeholderTextColor="#9CA3AF" />
+      <Text style={styles.label}>Unidad</Text>
+      <TextInput
+        style={styles.input}
+        value={unit}
+        onChangeText={setUnit}
+        placeholder="ej. botella, kg, caja"
+        placeholderTextColor="#9CA3AF"
+      />
 
       <TouchableOpacity onPress={handleCreate} disabled={saving} activeOpacity={0.85}>
-        <LinearGradient colors={saving ? ["#93c5fd", "#93c5fd"] : ["#2F5FE0", "#4C7DFF"]} style={styles.button}>
-          <Text style={styles.buttonText}>{saving ? "Creating…" : "Create & add batch"}</Text>
+        <LinearGradient
+          colors={saving ? ["#93c5fd", "#93c5fd"] : ["#2F5FE0", "#4C7DFF"]}
+          style={styles.button}
+        >
+          <Text style={styles.buttonText}>{saving ? "Creando…" : "Crear y agregar lote"}</Text>
         </LinearGradient>
       </TouchableOpacity>
     </ScrollView>

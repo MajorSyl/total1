@@ -1,5 +1,3 @@
-// screens/BarcodeScanScreen.tsx
-
 import React, { useState, useRef } from "react";
 import {
   View,
@@ -34,9 +32,11 @@ export default function BarcodeScanScreen({ navigation }: any) {
   if (!permission.granted) {
     return (
       <View style={styles.center}>
-        <Text style={styles.message}>We need camera access to scan barcodes.</Text>
+        <Text style={styles.message}>
+          Necesitamos acceso a la cámara para escanear códigos de barras.
+        </Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Grant permission</Text>
+          <Text style={styles.buttonText}>Conceder permiso</Text>
         </TouchableOpacity>
       </View>
     );
@@ -63,7 +63,7 @@ export default function BarcodeScanScreen({ navigation }: any) {
         navigation.navigate("NewProduct", { barcode: data });
       }
     } catch (err: any) {
-      Alert.alert("Lookup failed", err.message ?? "Please try again.");
+      Alert.alert("Error de búsqueda", err.message ?? "Inténtalo de nuevo.");
     } finally {
       setLoading(false);
       setTimeout(() => {
@@ -86,13 +86,13 @@ export default function BarcodeScanScreen({ navigation }: any) {
 
       <View style={styles.overlay}>
         <View style={styles.scanFrame} />
-        <Text style={styles.hint}>Align the barcode inside the frame</Text>
+        <Text style={styles.hint}>Alinea el código dentro del marco</Text>
       </View>
 
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.loadingText}>Looking up product…</Text>
+          <Text style={styles.loadingText}>Buscando producto…</Text>
         </View>
       )}
     </View>
@@ -102,7 +102,7 @@ export default function BarcodeScanScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  message: { textAlign: "center", marginBottom: 16, fontSize: 16 },
+  message: { textAlign: "center", marginBottom: 16, fontSize: 16, color: "#111827" },
   button: { backgroundColor: "#2F5FE0", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   buttonText: { color: "#fff", fontWeight: "600" },
   overlay: {

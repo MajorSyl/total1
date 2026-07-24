@@ -63,6 +63,12 @@ function urgencyColor(urgency: AlertRow["urgency"]) {
   return { fg: "#2563EB", bg: "#DBEAFE" };
 }
 
+function urgencyLabel(urgency: AlertRow["urgency"]) {
+  if (urgency === "expired") return "Vencido";
+  if (urgency === "urgent") return "Urgente";
+  return "Advertencia";
+}
+
 function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 }
@@ -73,27 +79,25 @@ export default function DashboardPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("home");
 
-  // Existing batch state — real-time subscription is untouched
   const [batches, setBatches] = useState<ExpiringBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "urgent" | "expired">("all");
 
-  // New state
   const [staffInfo, setStaffInfo] = useState<StaffInfo | null>(null);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsError, setAlertsError] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
 
-  // Auth guard (unchanged)
+  // Auth guard
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) router.replace("/login");
     });
   }, [router]);
 
-  // Load staff info for batch writes and alert acknowledge
+  // Staff info for batch writes and alert acknowledge
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) return;
@@ -108,7 +112,7 @@ export default function DashboardPage() {
     });
   }, []);
 
-  // Real-time batch subscription (unchanged logic)
+  // Real-time batch subscription
   useEffect(() => {
     let active = true;
     async function load() {
@@ -132,7 +136,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Load alerts on mount (bell badge) and refresh on tab switch
+  // Load alerts on mount (for bell badge) and on tab switch
   const loadAlerts = async () => {
     setAlertsLoading(true);
     setAlertsError(null);
@@ -166,7 +170,6 @@ export default function DashboardPage() {
     loadAlerts();
   };
 
-  // Existing filter/count memos — unchanged
   const filtered = useMemo(() => {
     if (filter === "expired") return batches.filter((b) => b.status === "expired");
     if (filter === "urgent") return batches.filter((b) => b.days_remaining > 0 && b.days_remaining <= 3);
@@ -186,7 +189,7 @@ export default function DashboardPage() {
   const categoryBreakdown = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach((b) => {
-      const cat = b.category ?? "Uncategorized";
+      const cat = b.category ?? "Sin categoría";
       map[cat] = (map[cat] ?? 0) + 1;
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -196,20 +199,23 @@ export default function DashboardPage() {
 
   const FilterPills = () => (
     <div className="flex gap-2 mb-3">
-      {(["all", "urgent", "expired"] as const).map((f) => (
-        <button
-          key={f}
-          onClick={() => setFilter(f)}
-          className="px-4 py-1.5 rounded-full text-sm font-medium capitalize"
-          style={
-            filter === f
-              ? { backgroundColor: "#2F5FE0", color: "#FFFFFF" }
-              : { backgroundColor: "#FFFFFF", color: "#6B7280", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }
-          }
-        >
-          {f === "all" ? "All batches" : f}
-        </button>
-      ))}
+      {(["all", "urgent", "expired"] as const).map((f) => {
+        const labels = { all: "Todos", urgent: "Urgente", expired: "Vencido" };
+        return (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className="px-4 py-1.5 rounded-full text-sm font-medium"
+            style={
+              filter === f
+                ? { backgroundColor: "#2F5FE0", color: "#FFFFFF" }
+                : { backgroundColor: "#FFFFFF", color: "#6B7280", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }
+            }
+          >
+            {labels[f]}
+          </button>
+        );
+      })}
     </div>
   );
 
@@ -221,8 +227,8 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="flex items-center justify-between mb-6">
         <div>
-          <p className="text-sm" style={{ color: "#6B7280" }}>Welcome back,</p>
-          <h1 className="text-lg font-semibold">Manager</h1>
+          <p className="text-sm" style={{ color: "#6B7280" }}>Bienvenido,</p>
+          <h1 className="text-lg font-semibold">Gerente</h1>
         </div>
         <button
           onClick={() => setTab("alerts")}
@@ -241,7 +247,7 @@ export default function DashboardPage() {
         </button>
       </header>
 
-      {/* ---- HOME TAB ---- */}
+      {/* ---- INICIO TAB ---- */}
       {tab === "home" && (
         <>
           {/* Hero card */}
@@ -250,9 +256,9 @@ export default function DashboardPage() {
             style={{ background: "linear-gradient(135deg, #2F5FE0 0%, #4C7DFF 100%)", boxShadow: "0 8px 24px rgba(47,95,224,0.25)" }}
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm text-white/80">Total Batches Tracked</p>
+              <p className="text-sm text-white/80">Total de lotes registrados</p>
               <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
-                {counts.fresh} fresh
+                {counts.fresh} frescos
               </span>
             </div>
             <p className="text-4xl font-bold mb-5">{counts.total}</p>
@@ -262,42 +268,42 @@ export default function DashboardPage() {
                 className="flex-1 rounded-xl py-2.5 text-sm font-semibold"
                 style={{ backgroundColor: "#FFFFFF", color: "#2F5FE0" }}
               >
-                + Add batch
+                + Agregar lote
               </button>
               <button
                 onClick={() => setTab("alerts")}
                 className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white"
                 style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
               >
-                View alerts
+                Ver alertas
               </button>
             </div>
           </div>
 
           {/* Insights */}
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-[15px]">Expiry Insights</h2>
+            <h2 className="font-semibold text-[15px]">Alertas de vencimiento</h2>
             <button onClick={() => setTab("batches")} className="text-sm font-medium" style={{ color: "#2F5FE0" }}>
-              View all
+              Ver todos
             </button>
           </div>
           <div className="space-y-3 mb-6">
             {counts.expired > 0 && (
               <InsightCard icon="⚠️" iconBg="#FEE2E2"
-                title={`${counts.expired} batch${counts.expired === 1 ? "" : "es"} already expired`}
-                body="These should be pulled from shelves and marked disposed today."
+                title={`${counts.expired} lote${counts.expired === 1 ? "" : "s"} ya vencido${counts.expired === 1 ? "" : "s"}`}
+                body="Estos deben ser retirados de las estanterías y marcados como dispuestos hoy."
               />
             )}
             {counts.urgent > 0 && (
               <InsightCard icon="⏳" iconBg="#FEF3C7"
-                title={`${counts.urgent} expiring within 3 days`}
-                body="Consider discounting these to move stock before they turn over."
+                title={`${counts.urgent} lote${counts.urgent === 1 ? "" : "s"} vence${counts.urgent === 1 ? "" : "n"} en menos de 3 días`}
+                body="Considera ofrecer descuentos para mover el inventario antes de que venza."
               />
             )}
             {counts.expired === 0 && counts.urgent === 0 && (
               <InsightCard icon="✅" iconBg="#DCFCE7"
-                title="Nothing urgent right now"
-                body="No batches are expired or expiring within 3 days."
+                title="Todo en orden"
+                body="Ningún lote vencido ni próximo a vencer en los próximos 3 días."
               />
             )}
           </div>
@@ -305,7 +311,7 @@ export default function DashboardPage() {
           {/* Category breakdown */}
           {categoryBreakdown.length > 0 && (
             <>
-              <h2 className="font-semibold text-[15px] mb-3">Breakdown by category</h2>
+              <h2 className="font-semibold text-[15px] mb-3">Distribución por categoría</h2>
               <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
                 {categoryBreakdown.map(([cat, count]) => {
                   const pct = Math.round((count / filtered.length) * 100);
@@ -325,25 +331,22 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* Filter pills (unchanged) */}
           <FilterPills />
-
-          {/* Batch list (unchanged) */}
           <BatchList batches={filtered} loading={loading} error={error} />
         </>
       )}
 
-      {/* ---- BATCHES TAB ---- */}
+      {/* ---- LOTES TAB ---- */}
       {tab === "batches" && (
         <>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-[17px]">All Batches</h2>
+            <h2 className="font-semibold text-[17px]">Todos los lotes</h2>
             <button
               onClick={() => setShowScanModal(true)}
               className="px-4 py-1.5 rounded-full text-sm font-semibold text-white"
               style={{ backgroundColor: "#2F5FE0" }}
             >
-              + Add
+              + Agregar
             </button>
           </div>
           <FilterPills />
@@ -351,20 +354,20 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* ---- ALERTS TAB ---- */}
+      {/* ---- ALERTAS TAB ---- */}
       {tab === "alerts" && (
         <>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-[17px]">
-              Alerts
+              Alertas
               {unacknowledgedCount > 0 && (
                 <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FEE2E2", color: "#DC2626" }}>
-                  {unacknowledgedCount} new
+                  {unacknowledgedCount} nueva{unacknowledgedCount === 1 ? "" : "s"}
                 </span>
               )}
             </h2>
             <button onClick={loadAlerts} className="text-sm font-medium" style={{ color: "#2F5FE0" }}>
-              Refresh
+              Actualizar
             </button>
           </div>
           <AlertsView alerts={alerts} loading={alertsLoading} error={alertsError} onAcknowledge={handleAcknowledge} />
@@ -377,7 +380,11 @@ export default function DashboardPage() {
         style={{ backgroundColor: "#FFFFFF", borderColor: "#F0F1F5" }}
       >
         {(["home", "batches", "alerts"] as const).map((t) => {
-          const meta = { home: { icon: "🏠", label: "Home" }, batches: { icon: "📦", label: "Batches" }, alerts: { icon: "🔔", label: "Alerts" } }[t];
+          const meta = {
+            home: { icon: "🏠", label: "Inicio" },
+            batches: { icon: "📦", label: "Lotes" },
+            alerts: { icon: "🔔", label: "Alertas" },
+          }[t];
           return (
             <button
               key={t}
@@ -404,7 +411,7 @@ export default function DashboardPage() {
           style={{ color: "#9CA3AF" }}
         >
           <span>👤</span>
-          Sign out
+          Cerrar sesión
         </button>
       </nav>
       <div className="h-16" />
@@ -424,7 +431,7 @@ export default function DashboardPage() {
           onClick={() => setShowScanModal(false)}
         >
           <div className="rounded-2xl p-6 bg-white">
-            <p className="text-sm" style={{ color: "#6B7280" }}>Loading staff profile…</p>
+            <p className="text-sm" style={{ color: "#6B7280" }}>Cargando perfil…</p>
           </div>
         </div>
       )}
@@ -432,19 +439,19 @@ export default function DashboardPage() {
   );
 }
 
-// ---- BatchList (extracted so both Home and Batches tabs reuse it) ----
+// ---- BatchList ----
 
 function BatchList({ batches, loading, error }: { batches: ExpiringBatch[]; loading: boolean; error: string | null }) {
   return (
     <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-      {loading && <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Loading batches…</p>}
-      {error && <p className="p-6 text-sm" style={{ color: "#DC2626" }}>Couldn't load data: {error}</p>}
+      {loading && <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Cargando lotes…</p>}
+      {error && <p className="p-6 text-sm" style={{ color: "#DC2626" }}>Error al cargar: {error}</p>}
       {!loading && !error && batches.length === 0 && (
-        <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Nothing here. Everything in this view is fresh.</p>
+        <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Sin resultados. Todo dentro del rango seguro.</p>
       )}
       {!loading && !error && batches.map((b, i) => {
         const { fg, bg } = statusColor(b.days_remaining);
-        const label = b.days_remaining <= 0 ? "Expired" : `${b.days_remaining}d left`;
+        const label = b.days_remaining <= 0 ? "Vencido" : `${b.days_remaining}d restantes`;
         return (
           <div
             key={b.batch_id}
@@ -460,7 +467,7 @@ function BatchList({ batches, loading, error }: { batches: ExpiringBatch[]; load
             <div className="flex-1 min-w-0">
               <p className="font-medium text-[14px] truncate">{b.product_name}</p>
               <p className="text-xs" style={{ color: "#6B7280" }}>
-                {b.category ?? "Uncategorized"} · {b.store_name}
+                {b.category ?? "Sin categoría"} · {b.store_name}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -492,14 +499,14 @@ function AlertsView({
   error: string | null;
   onAcknowledge: (id: string) => void;
 }) {
-  if (loading) return <p className="py-8 text-center text-sm" style={{ color: "#6B7280" }}>Loading alerts…</p>;
+  if (loading) return <p className="py-8 text-center text-sm" style={{ color: "#6B7280" }}>Cargando alertas…</p>;
   if (error) return <p className="py-8 text-center text-sm" style={{ color: "#DC2626" }}>Error: {error}</p>;
   if (alerts.length === 0) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
         <p className="text-2xl mb-2">✅</p>
-        <p className="font-medium text-[14px]">No alerts</p>
-        <p className="text-xs mt-1" style={{ color: "#6B7280" }}>All batches are within safe thresholds.</p>
+        <p className="font-medium text-[14px]">Sin alertas</p>
+        <p className="text-xs mt-1" style={{ color: "#6B7280" }}>Todos los lotes están dentro del límite seguro.</p>
       </div>
     );
   }
@@ -524,22 +531,22 @@ function AlertsView({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                  <p className="font-medium text-[14px]">{product?.name ?? "Unknown product"}</p>
+                  <p className="font-medium text-[14px]">{product?.name ?? "Producto desconocido"}</p>
                   <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize"
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
                     style={{ color: fg, backgroundColor: bg }}
                   >
-                    {a.urgency}
+                    {urgencyLabel(a.urgency)}
                   </span>
                 </div>
                 <p className="text-xs" style={{ color: "#6B7280" }}>
-                  {product?.barcode} · expires {a.batches?.expiry_date} · {a.threshold_days}d threshold
+                  {product?.barcode} · vence {a.batches?.expiry_date} · umbral {a.threshold_days}d
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
                   {a.sent_at
-                    ? `Sent ${new Date(a.sent_at).toLocaleDateString()}`
-                    : "Not yet sent"}
-                  {acknowledged && ` · Acknowledged ${new Date(a.acknowledged_at!).toLocaleDateString()}`}
+                    ? `Enviado el ${new Date(a.sent_at).toLocaleDateString("es-VE")}`
+                    : "Sin enviar"}
+                  {acknowledged && ` · Confirmado el ${new Date(a.acknowledged_at!).toLocaleDateString("es-VE")}`}
                 </p>
               </div>
               {!acknowledged && (
@@ -548,7 +555,7 @@ function AlertsView({
                   className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg"
                   style={{ backgroundColor: "#EEF1F6", color: "#2F5FE0" }}
                 >
-                  Ack
+                  Visto
                 </button>
               )}
             </div>
@@ -559,7 +566,7 @@ function AlertsView({
   );
 }
 
-// ---- ScanModal (manual batch entry, web substitute for camera scan) ----
+// ---- ScanModal (manual batch entry — web substitute for camera scan) ----
 
 function ScanModal({
   staffInfo,
@@ -609,11 +616,11 @@ function ScanModal({
 
   const handleSave = async () => {
     if (!quantity || isNaN(Number(quantity)) || Number(quantity) <= 0) {
-      setSaveError("Enter a valid quantity greater than 0.");
+      setSaveError("Ingresa una cantidad válida mayor que 0.");
       return;
     }
-    if (!expiryDate) { setSaveError("Enter an expiry date."); return; }
-    if (isNew && !productName.trim()) { setSaveError("Enter a product name."); return; }
+    if (!expiryDate) { setSaveError("Ingresa una fecha de vencimiento."); return; }
+    if (isNew && !productName.trim()) { setSaveError("Ingresa el nombre del producto."); return; }
 
     setSaving(true);
     setSaveError(null);
@@ -648,7 +655,7 @@ function ScanModal({
 
       onSuccess();
     } catch (err: any) {
-      setSaveError(err.message ?? "Save failed. Please try again.");
+      setSaveError(err.message ?? "Error al guardar. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -669,10 +676,10 @@ function ScanModal({
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-semibold text-[17px]">
             {step === "lookup"
-              ? "Register batch"
+              ? "Registrar lote"
               : isNew
-              ? "New product + batch"
-              : `Batch for ${product?.name}`}
+              ? "Nuevo producto + lote"
+              : `Lote para ${product?.name}`}
           </h2>
           <button onClick={onClose} style={{ color: "#9CA3AF", fontSize: 20, lineHeight: 1 }}>✕</button>
         </div>
@@ -680,14 +687,14 @@ function ScanModal({
         {step === "lookup" && (
           <>
             <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>
-              Barcode number
+              Código de barras
             </label>
             <input
               type="text"
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLookup()}
-              placeholder="e.g. 5000000000001"
+              placeholder="ej. 5000000000001"
               autoFocus
               className="w-full rounded-xl px-4 py-3 text-[15px] mb-4 border"
               style={{ borderColor: "#E5E7EB", outline: "none", color: "#14171F", backgroundColor: "#F9FAFB", boxSizing: "border-box" }}
@@ -702,7 +709,7 @@ function ScanModal({
                 cursor: looking || !barcode.trim() ? "not-allowed" : "pointer",
               }}
             >
-              {looking ? "Looking up…" : "Look up barcode →"}
+              {looking ? "Buscando…" : "Buscar código →"}
             </button>
           </>
         )}
@@ -735,33 +742,33 @@ function ScanModal({
             {isNew && (
               <div className="rounded-xl p-4 mb-5 border" style={{ borderColor: "#FDE68A", backgroundColor: "#FFFBEB" }}>
                 <p className="text-xs font-semibold mb-3" style={{ color: "#D97706" }}>
-                  Barcode {barcode} not found — fill in product details
+                  Código {barcode} no encontrado — ingresa los datos del producto
                 </p>
-                <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Product name *</label>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Nombre del producto *</label>
                 <input
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  placeholder="e.g. Whole Milk 1L"
+                  placeholder="ej. Leche Entera 1L"
                   className="w-full rounded-lg px-3 py-2 text-sm mb-3 border"
                   style={{ borderColor: "#E5E7EB", backgroundColor: "#fff", boxSizing: "border-box" }}
                 />
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Category</label>
+                    <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Categoría</label>
                     <input
                       value={productCategory}
                       onChange={(e) => setProductCategory(e.target.value)}
-                      placeholder="e.g. Dairy"
+                      placeholder="ej. Lácteos"
                       className="w-full rounded-lg px-3 py-2 text-sm border"
                       style={{ borderColor: "#E5E7EB", backgroundColor: "#fff", boxSizing: "border-box" }}
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Unit</label>
+                    <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Unidad</label>
                     <input
                       value={productUnit}
                       onChange={(e) => setProductUnit(e.target.value)}
-                      placeholder="e.g. bottle"
+                      placeholder="ej. botella"
                       className="w-full rounded-lg px-3 py-2 text-sm border"
                       style={{ borderColor: "#E5E7EB", backgroundColor: "#fff", boxSizing: "border-box" }}
                     />
@@ -772,18 +779,18 @@ function ScanModal({
 
             {/* Batch fields */}
             <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>
-              Quantity{product?.unit ? ` (${product.unit})` : ""} *
+              Cantidad{product?.unit ? ` (${product.unit})` : ""} *
             </label>
             <input
               type="number"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              placeholder="e.g. 24"
+              placeholder="ej. 24"
               className="w-full rounded-xl px-4 py-3 text-[15px] mb-3 border"
               style={{ borderColor: "#E5E7EB", outline: "none", color: "#14171F", backgroundColor: "#F9FAFB", boxSizing: "border-box" }}
             />
 
-            <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Expiry date *</label>
+            <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Fecha de vencimiento *</label>
             <input
               type="date"
               value={expiryDate}
@@ -793,12 +800,12 @@ function ScanModal({
             />
 
             <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>
-              Batch / lot number (optional)
+              Número de lote (opcional)
             </label>
             <input
               value={batchNumber}
               onChange={(e) => setBatchNumber(e.target.value)}
-              placeholder="e.g. LOT-2026-0714"
+              placeholder="ej. LOT-2026-0714"
               className="w-full rounded-xl px-4 py-3 text-[15px] mb-5 border"
               style={{ borderColor: "#E5E7EB", outline: "none", color: "#14171F", backgroundColor: "#F9FAFB", boxSizing: "border-box" }}
             />
@@ -811,7 +818,7 @@ function ScanModal({
                 className="flex-1 py-3 rounded-xl text-sm font-semibold"
                 style={{ backgroundColor: "#EEF1F6", color: "#374151" }}
               >
-                ← Back
+                ← Volver
               </button>
               <button
                 onClick={handleSave}
@@ -822,7 +829,7 @@ function ScanModal({
                   cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                {saving ? "Saving…" : "Save batch"}
+                {saving ? "Guardando…" : "Guardar lote"}
               </button>
             </div>
           </>
@@ -832,7 +839,7 @@ function ScanModal({
   );
 }
 
-// ---- InsightCard (unchanged) ----
+// ---- InsightCard ----
 
 function InsightCard({
   icon,

@@ -32,12 +32,14 @@ export default function LoginPage() {
 
       if (!staffRow) {
         await supabase.auth.signOut();
-        throw new Error("No staff profile linked to this account. Ask an admin to add you.");
+        throw new Error(
+          "No hay un perfil de personal vinculado a esta cuenta. Pide a un administrador que te agregue."
+        );
       }
 
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message ?? "Login failed — check your details.");
+      setError(err.message ?? "Error al iniciar sesión — verifica tus datos.");
     } finally {
       setLoading(false);
     }
@@ -65,22 +67,22 @@ export default function LoginPage() {
         }}
       >
         <p style={{ color: "#8A909B", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>
-          Mall Expiry Tracker
+          Total Mundo
         </p>
         <h1 style={{ color: "#E7E9EC", fontSize: 24, fontWeight: 600, marginBottom: 28 }}>
-          Manager sign in
+          Acceso de gerente
         </h1>
 
         <form onSubmit={handleLogin}>
           <label style={{ display: "block", color: "#8A909B", fontSize: 12, marginBottom: 6 }}>
-            Email
+            Correo electrónico
           </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="you@mall.com"
+            placeholder="correo@tienda.com"
             style={{
               display: "block",
               width: "100%",
@@ -97,7 +99,7 @@ export default function LoginPage() {
           />
 
           <label style={{ display: "block", color: "#8A909B", fontSize: 12, marginBottom: 6 }}>
-            Password
+            Contraseña
           </label>
           <input
             type="password"
@@ -140,7 +142,7 @@ export default function LoginPage() {
               cursor: loading ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Iniciando sesión…" : "Iniciar sesión"}
           </button>
         </form>
       </div>

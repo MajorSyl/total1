@@ -1,5 +1,3 @@
-// screens/BatchEntryScreen.tsx
-
 import React, { useState } from "react";
 import {
   View,
@@ -13,7 +11,28 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
 import { supabase } from "../lib/supabase";
+
+async function sendLocalExpiryAlert(productName: string, daysRemaining: number) {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") return;
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: daysRemaining <= 0 ? "⚠️ Lote vencido registrado" : "⏳ Lote próximo a vencer",
+        body:
+          daysRemaining <= 0
+            ? `${productName} ya está vencido. Considera retirarlo de las estanterías.`
+            : `${productName} vence en ${daysRemaining} día(s). Revísalo pronto.`,
+        sound: true,
+      },
+      trigger: null,
+    });
+  } catch (_e) {
+    // Notification permission not available — skip silently
+  }
+}
 
 export default function BatchEntryScreen({ route, navigation }: any) {
   const { product } = route.params;
@@ -28,7 +47,7 @@ export default function BatchEntryScreen({ route, navigation }: any) {
 
   const handleSave = async () => {
     if (!quantity || isNaN(Number(quantity)) || Number(quantity) <= 0) {
-      Alert.alert("Check quantity", "Enter a valid quantity greater than 0.");
+      Alert.alert("Revisa la cantidad", "Ingresa una cantidad válida mayor que 0.");
       return;
     }
 
@@ -56,11 +75,19 @@ export default function BatchEntryScreen({ route, navigation }: any) {
 
       if (error) throw error;
 
-      Alert.alert("Saved", `Batch registered for ${product.name}.`, [
-        { text: "Scan next", onPress: () => navigation.navigate("BarcodeScan") },
-      ]);
+      // Send immediate local notification if batch is expired or near expiry
+      const daysRemaining = Math.floor((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (daysRemaining <= 3) {
+        await sendLocalExpiryAlert(product.name, daysRemaining);
+      }
+
+      Alert.alert(
+        "Lote guardado",
+        `Lote registrado para ${product.name}.`,
+        [{ text: "Escanear siguiente", onPress: () => navigation.navigate("BarcodeScan") }]
+      );
     } catch (err: any) {
-      Alert.alert("Save failed", err.message ?? "Please try again.");
+      Alert.alert("Error al guardar", err.message ?? "Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -74,35 +101,35 @@ export default function BatchEntryScreen({ route, navigation }: any) {
             {product.name.split(" ").slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join("")}
           </Text>
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.productMeta}>Barcode: {product.barcode}</Text>
+          <Text style={styles.productMeta}>Código: {product.barcode}</Text>
           {product.category && <Text style={styles.productMeta}>{product.category}</Text>}
         </View>
       </View>
 
-      <Text style={styles.label}>Quantity{product.unit ? ` (${product.unit})` : ""}</Text>
+      <Text style={styles.label}>Cantidad{product.unit ? ` (${product.unit})` : ""}</Text>
       <TextInput
         style={styles.input}
         keyboardType="numeric"
         value={quantity}
         onChangeText={setQuantity}
-        placeholder="e.g. 24"
+        placeholder="ej. 24"
         placeholderTextColor="#9CA3AF"
       />
 
-      <Text style={styles.label}>Batch / lot number (optional)</Text>
+      <Text style={styles.label}>Número de lote (opcional)</Text>
       <TextInput
         style={styles.input}
         value={batchNumber}
         onChangeText={setBatchNumber}
-        placeholder="e.g. LOT-2026-0714"
+        placeholder="ej. LOT-2026-0714"
         placeholderTextColor="#9CA3AF"
       />
 
-      <Text style={styles.label}>Expiry date</Text>
+      <Text style={styles.label}>Fecha de vencimiento</Text>
       <TouchableOpacity style={styles.dateButton} onPress={() => setShowPicker(true)}>
-        <Text style={styles.dateButtonText}>{expiryDate.toDateString()}</Text>
+        <Text style={styles.dateButtonText}>{expiryDate.toLocaleDateString("es-VE")}</Text>
       </TouchableOpacity>
       {showPicker && (
         <DateTimePicker
@@ -122,7 +149,7 @@ export default function BatchEntryScreen({ route, navigation }: any) {
           colors={saving ? ["#93c5fd", "#93c5fd"] : ["#2F5FE0", "#4C7DFF"]}
           style={styles.saveButton}
         >
-          <Text style={styles.saveButtonText}>{saving ? "Saving…" : "Save batch"}</Text>
+          <Text style={styles.saveButtonText}>{saving ? "Guardando…" : "Guardar lote"}</Text>
         </LinearGradient>
       </TouchableOpacity>
     </ScrollView>

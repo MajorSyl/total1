@@ -1,24 +1,41 @@
 import React, { Component, useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import * as Notifications from "expo-notifications";
 import { supabase } from "./lib/supabase";
 
 import LoginScreen from "./screens/LoginScreen";
 import BarcodeScanScreen from "./screens/BarcodeScanScreen";
 import BatchEntryScreen from "./screens/BatchEntryScreen";
 import NewProductScreen from "./screens/NewProductScreen";
+import StoreInventoryScreen from "./screens/StoreInventoryScreen";
+
+// Show notifications when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export type RootStackParamList = {
   Login: undefined;
   BarcodeScan: undefined;
   BatchEntry: { product: any };
   NewProduct: { barcode: string };
+  StoreInventory: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Catches any render-time JS error and shows it on screen in production.
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
   { error: string | null }
@@ -34,7 +51,7 @@ class ErrorBoundary extends Component<
           contentContainerStyle={{ flex: 1, padding: 24, backgroundColor: "#fff" }}
         >
           <Text style={{ color: "#DC2626", fontSize: 16, fontWeight: "700", marginBottom: 12 }}>
-            App error — please screenshot and share this:
+            Error de la app — toma una captura y compártela:
           </Text>
           <Text style={{ fontFamily: "monospace", fontSize: 12, color: "#111" }}>
             {this.state.error}
@@ -76,12 +93,45 @@ function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: true }}>
         {signedIn ? (
           <>
-            <Stack.Screen name="BarcodeScan" component={BarcodeScanScreen} options={{ title: "Scan product" }} />
-            <Stack.Screen name="BatchEntry" component={BatchEntryScreen} options={{ title: "Register batch" }} />
-            <Stack.Screen name="NewProduct" component={NewProductScreen} options={{ title: "New product" }} />
+            <Stack.Screen
+              name="BarcodeScan"
+              component={BarcodeScanScreen}
+              options={({ navigation }) => ({
+                title: "Escanear producto",
+                headerRight: () => (
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("StoreInventory")}
+                    style={{ paddingHorizontal: 4 }}
+                  >
+                    <Text style={{ color: "#2F5FE0", fontWeight: "600", fontSize: 14 }}>
+                      Mi tienda
+                    </Text>
+                  </TouchableOpacity>
+                ),
+              })}
+            />
+            <Stack.Screen
+              name="BatchEntry"
+              component={BatchEntryScreen}
+              options={{ title: "Registrar lote" }}
+            />
+            <Stack.Screen
+              name="NewProduct"
+              component={NewProductScreen}
+              options={{ title: "Nuevo producto" }}
+            />
+            <Stack.Screen
+              name="StoreInventory"
+              component={StoreInventoryScreen}
+              options={{ title: "Mi tienda" }}
+            />
           </>
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
         )}
       </Stack.Navigator>
     </NavigationContainer>
