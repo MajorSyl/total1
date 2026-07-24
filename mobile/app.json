@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Total Mundo",
-    "slug": "mall-expiry-tracker",
+    "slug": "total",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,8 @@
       "backgroundColor": "#ffffff"
     },
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/f97a5787-61fb-48da-9b9b-1e73f953242d"
     },
     "runtimeVersion": {
       "policy": "sdkVersion"
@@ -25,7 +26,18 @@
     },
     "android": {
       "package": "com.sylexpress.mallexpirytracker",
-      "permissions": ["CAMERA", "RECEIVE_BOOT_COMPLETED", "VIBRATE"]
+      "permissions": [
+        "CAMERA",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "CAMERA",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -42,6 +54,12 @@
           "sounds": []
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f97a5787-61fb-48da-9b9b-1e73f953242d"
+      }
+    },
+    "owner": "syl-express"
   }
 }
