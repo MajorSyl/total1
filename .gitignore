@@ -22,3 +22,6 @@ next-env.d.ts
 
 # OS
 .DS_Store
+
+# Original zip extraction (duplicate of root)
+mall-expiry-system/
