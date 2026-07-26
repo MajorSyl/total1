@@ -17,6 +17,18 @@
       },
       "permissions": []
     },
-    "owner": "syl-express"
+    "owner": "syl-express",
+    "extra": {
+      "eas": {
+        "projectId": "1dfe1ba3-9465-41d2-901c-a88ef2b778a3"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1dfe1ba3-9465-41d2-901c-a88ef2b778a3"
+    },
+    "ios": {}
   }
 }
