@@ -45,7 +45,7 @@ type Product = {
   unit: string | null;
 };
 
-type StaffInfo = { id: string; store_id: string };
+type StaffInfo = { id: string; store_id: string; role: string };
 type ScanStep = "lookup" | "batch";
 
 // ---- Helpers ----
@@ -89,6 +89,9 @@ export default function DashboardPage() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsError, setAlertsError] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<ExpiringBatch | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ExpiringBatch | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Auth guard
   useEffect(() => {
@@ -103,7 +106,7 @@ export default function DashboardPage() {
       if (!data.user) return;
       supabase
         .from("staff")
-        .select("id, store_id")
+        .select("id, store_id, role")
         .eq("auth_user_id", data.user.id)
         .single()
         .then(({ data: row }) => {
@@ -159,6 +162,19 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/login");
+  };
+
+  const handleDelete = async (batch: ExpiringBatch) => {
+    setDeletingId(batch.batch_id);
+    try {
+      const { error } = await supabase.rpc("soft_delete_batch", { p_batch_id: batch.batch_id });
+      if (error) throw error;
+      setConfirmDelete(null);
+    } catch (err: any) {
+      alert(err.message ?? "No se pudo eliminar el lote.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleAcknowledge = async (alertId: string) => {
@@ -332,7 +348,7 @@ export default function DashboardPage() {
           )}
 
           <FilterPills />
-          <BatchList batches={filtered} loading={loading} error={error} />
+          <BatchList batches={filtered} loading={loading} error={error} staffInfo={staffInfo} onEdit={setEditingBatch} onDelete={setConfirmDelete} />
         </>
       )}
 
@@ -350,7 +366,7 @@ export default function DashboardPage() {
             </button>
           </div>
           <FilterPills />
-          <BatchList batches={filtered} loading={loading} error={error} />
+          <BatchList batches={filtered} loading={loading} error={error} staffInfo={staffInfo} onEdit={setEditingBatch} onDelete={setConfirmDelete} />
         </>
       )}
 
@@ -435,13 +451,41 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {editingBatch && staffInfo && (
+        <EditBatchModal
+          batch={editingBatch}
+          staffInfo={staffInfo}
+          onClose={() => setEditingBatch(null)}
+          onSaved={() => setEditingBatch(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          batch={confirmDelete}
+          deleting={deletingId === confirmDelete.batch_id}
+          onConfirm={() => handleDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }
 
 // ---- BatchList ----
 
-function BatchList({ batches, loading, error }: { batches: ExpiringBatch[]; loading: boolean; error: string | null }) {
+function BatchList({
+  batches, loading, error, staffInfo, onEdit, onDelete,
+}: {
+  batches: ExpiringBatch[];
+  loading: boolean;
+  error: string | null;
+  staffInfo: StaffInfo | null;
+  onEdit: (b: ExpiringBatch) => void;
+  onDelete: (b: ExpiringBatch) => void;
+}) {
+  const isManager = staffInfo?.role === "manager" || staffInfo?.role === "admin";
   return (
     <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       {loading && <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Cargando lotes…</p>}
@@ -455,29 +499,46 @@ function BatchList({ batches, loading, error }: { batches: ExpiringBatch[]; load
         return (
           <div
             key={b.batch_id}
-            className="flex items-center gap-3 px-5 py-4"
+            className="px-5 py-4"
             style={{ borderTop: i === 0 ? "none" : "1px solid #F0F1F5" }}
           >
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-              style={{ backgroundColor: "#EEF1F6", color: "#2F5FE0" }}
-            >
-              {initials(b.product_name)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-[14px] truncate">{b.product_name}</p>
-              <p className="text-xs" style={{ color: "#6B7280" }}>
-                {b.category ?? "Sin categoría"} · {b.store_name}
-              </p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-xs font-mono mb-1" style={{ color: "#6B7280" }}>{b.expiry_date}</p>
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style={{ color: fg, backgroundColor: bg }}
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
+                style={{ backgroundColor: "#EEF1F6", color: "#2F5FE0" }}
               >
-                {label}
-              </span>
+                {initials(b.product_name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-[14px] truncate">{b.product_name}</p>
+                <p className="text-xs" style={{ color: "#6B7280" }}>
+                  {b.category ?? "Sin categoría"} · {b.store_name}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs font-mono mb-1" style={{ color: "#6B7280" }}>{b.expiry_date}</p>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: fg, backgroundColor: bg }}>
+                  {label}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2 pl-[52px]">
+              <button
+                onClick={() => onEdit(b)}
+                className="text-xs font-semibold px-3 py-1 rounded-lg"
+                style={{ backgroundColor: "#EEF1F6", color: "#2F5FE0" }}
+              >
+                Editar
+              </button>
+              {isManager && (
+                <button
+                  onClick={() => onDelete(b)}
+                  className="text-xs font-semibold px-3 py-1 rounded-lg"
+                  style={{ backgroundColor: "#FEE2E2", color: "#DC2626" }}
+                >
+                  Eliminar
+                </button>
+              )}
             </div>
           </div>
         );
@@ -834,6 +895,186 @@ function ScanModal({
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---- EditBatchModal ----
+
+function EditBatchModal({
+  batch, staffInfo, onClose, onSaved,
+}: {
+  batch: ExpiringBatch;
+  staffInfo: StaffInfo;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isManager = staffInfo.role === "manager" || staffInfo.role === "admin";
+
+  const [productName, setProductName] = useState(batch.product_name);
+  const [productCategory, setProductCategory] = useState(batch.category ?? "");
+  const [quantity, setQuantity] = useState(String(batch.quantity));
+  const [expiryDate, setExpiryDate] = useState(batch.expiry_date);
+  const [batchNumber, setBatchNumber] = useState(batch.batch_number ?? "");
+  const [status, setStatus] = useState<"active" | "expired">(
+    batch.status === "expired" ? "expired" : "active"
+  );
+  const [productId, setProductId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("batches")
+      .select("product_id")
+      .eq("id", batch.batch_id)
+      .single()
+      .then(({ data }) => { if (data) setProductId(data.product_id); });
+  }, [batch.batch_id]);
+
+  const handleSave = async () => {
+    if (!quantity || isNaN(Number(quantity)) || Number(quantity) <= 0) {
+      setSaveError("Ingresa una cantidad válida mayor que 0.");
+      return;
+    }
+    if (!expiryDate) { setSaveError("Ingresa una fecha de vencimiento."); return; }
+    if (isManager && !productName.trim()) { setSaveError("El nombre del producto no puede estar vacío."); return; }
+
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // Update product name/category (manager/admin only)
+      if (isManager && productId) {
+        const productChanges: Record<string, string | null> = {};
+        if (productName.trim() !== batch.product_name) productChanges.name = productName.trim();
+        const newCat = productCategory.trim() || null;
+        if (newCat !== batch.category) productChanges.category = newCat;
+        if (Object.keys(productChanges).length > 0) {
+          const { error: pErr } = await supabase.from("products").update(productChanges).eq("id", productId);
+          if (pErr) throw pErr;
+          await supabase.from("audit_log").insert({
+            table_name: "products", row_id: productId, action: "UPDATE",
+            old_data: { name: batch.product_name, category: batch.category },
+            new_data: productChanges, performed_by: staffInfo.id,
+          });
+        }
+      }
+
+      // Update batch fields
+      const batchChanges = {
+        quantity: Number(quantity),
+        expiry_date: expiryDate,
+        batch_number: batchNumber.trim() || null,
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      const { error: bErr } = await supabase.from("batches").update(batchChanges).eq("id", batch.batch_id);
+      if (bErr) throw bErr;
+
+      await supabase.from("audit_log").insert({
+        table_name: "batches", row_id: batch.batch_id, action: "UPDATE",
+        old_data: { quantity: batch.quantity, expiry_date: batch.expiry_date, batch_number: batch.batch_number, status: batch.status },
+        new_data: batchChanges, performed_by: staffInfo.id,
+      });
+
+      onSaved();
+    } catch (err: any) {
+      setSaveError(err.message ?? "Error al guardar. Inténtalo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = { borderColor: "#E5E7EB", outline: "none", color: "#14171F", backgroundColor: "#F9FAFB", boxSizing: "border-box" as const };
+
+  return (
+    <div className="fixed inset-0 flex items-end justify-center" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 50 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="w-full max-w-lg rounded-t-3xl p-6 pb-10" style={{ backgroundColor: "#FFFFFF", maxHeight: "90vh", overflowY: "auto" }}>
+        <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ backgroundColor: "#E5E7EB" }} />
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-semibold text-[17px]">Editar lote</h2>
+          <button onClick={onClose} style={{ color: "#9CA3AF", fontSize: 20, lineHeight: 1 }}>✕</button>
+        </div>
+
+        {isManager && (
+          <div className="rounded-xl p-4 mb-5 border" style={{ borderColor: "#E5E7EB", backgroundColor: "#F9FAFB" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide mb-3" style={{ color: "#9CA3AF" }}>Datos del producto</p>
+            <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Nombre *</label>
+            <input value={productName} onChange={(e) => setProductName(e.target.value)}
+              className="w-full rounded-lg px-3 py-2 text-sm mb-3 border" style={{ ...inputStyle, backgroundColor: "#fff" }} />
+            <label className="block text-[12px] font-semibold mb-1" style={{ color: "#374151" }}>Categoría</label>
+            <input value={productCategory} onChange={(e) => setProductCategory(e.target.value)}
+              placeholder="ej. Lácteos" className="w-full rounded-lg px-3 py-2 text-sm border" style={{ ...inputStyle, backgroundColor: "#fff" }} />
+          </div>
+        )}
+
+        <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Cantidad *</label>
+        <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)}
+          className="w-full rounded-xl px-4 py-3 text-[15px] mb-3 border" style={inputStyle} />
+
+        <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Fecha de vencimiento *</label>
+        <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)}
+          className="w-full rounded-xl px-4 py-3 text-[15px] mb-3 border" style={inputStyle} />
+
+        <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Número de lote (opcional)</label>
+        <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="ej. LOT-2026-0714"
+          className="w-full rounded-xl px-4 py-3 text-[15px] mb-3 border" style={inputStyle} />
+
+        <label className="block text-[13px] font-semibold mb-1.5" style={{ color: "#374151" }}>Estado</label>
+        <select value={status} onChange={(e) => setStatus(e.target.value as "active" | "expired")}
+          className="w-full rounded-xl px-4 py-3 text-[15px] mb-5 border" style={inputStyle}>
+          <option value="active">Activo</option>
+          <option value="expired">Vencido</option>
+        </select>
+
+        {saveError && <p className="text-sm mb-3" style={{ color: "#DC2626" }}>{saveError}</p>}
+
+        <button onClick={handleSave} disabled={saving} className="w-full py-3 rounded-xl text-sm font-semibold text-white"
+          style={{ background: saving ? "#93c5fd" : "linear-gradient(135deg, #2F5FE0, #4C7DFF)", cursor: saving ? "not-allowed" : "pointer" }}>
+          {saving ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---- ConfirmDialog ----
+
+function ConfirmDialog({
+  batch, deleting, onConfirm, onCancel,
+}: {
+  batch: ExpiringBatch;
+  deleting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center px-6"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)", zIndex: 60 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="w-full max-w-sm rounded-2xl p-6" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <p className="font-semibold text-[16px] mb-1">¿Eliminar este lote?</p>
+        <p className="text-sm font-medium mb-0.5">{batch.product_name}</p>
+        <p className="text-xs mb-4" style={{ color: "#6B7280" }}>
+          Vence {batch.expiry_date} · {batch.quantity} uds.
+        </p>
+        <p className="text-xs mb-5 p-3 rounded-xl" style={{ color: "#92400E", backgroundColor: "#FFFBEB" }}>
+          El lote quedará marcado como eliminado y desaparecerá de la lista. La acción queda registrada en el historial de auditoría.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={onCancel} disabled={deleting}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+            style={{ backgroundColor: "#EEF1F6", color: "#374151" }}>
+            Cancelar
+          </button>
+          <button onClick={onConfirm} disabled={deleting}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+            style={{ backgroundColor: deleting ? "#FCA5A5" : "#DC2626", cursor: deleting ? "not-allowed" : "pointer" }}>
+            {deleting ? "Eliminando…" : "Sí, eliminar"}
+          </button>
+        </div>
       </div>
     </div>
   );
