@@ -1,35 +1,29 @@
 // Supabase Edge Function: send-expiry-alerts
-// Scheduled to run daily (right after the check_expiry_thresholds() DB job).
-// Reads unsent alert rows, sends email + push notifications, marks them sent.
-//
-// Deploy with: supabase functions deploy send-expiry-alerts
-// Schedule via Supabase Dashboard > Edge Functions > Cron, or pg_cron calling
-// this function's URL with the service role key.
+// Sends push notifications and email digests for unsent expiry alerts.
+// Called daily by Supabase cron, or manually via the dashboard trigger button.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
-// const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"; // if using Expo push
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const FROM_EMAIL = Deno.env.get("ALERT_FROM_EMAIL") ?? "alertas@totalmund.com";
 
 Deno.serve(async () => {
-  // 1. Get all unsent alerts, joined with batch/product/store/staff info
   const { data: alerts, error } = await supabase
     .from("alerts")
     .select(
-      `
-      id, threshold_days, urgency,
-      batches (
-        id, expiry_date, quantity, batch_number,
-        products ( name, barcode, category ),
-        stores ( id, name ),
-        registered_by ( id, full_name, email, push_token )
-      )
-    `
+      `id, threshold_days, urgency,
+       batches (
+         id, expiry_date, quantity, batch_number,
+         products ( name, barcode, category ),
+         stores ( id, name )
+       )`
     )
     .is("sent_at", null);
 
@@ -38,38 +32,71 @@ Deno.serve(async () => {
   }
 
   if (!alerts || alerts.length === 0) {
-    return new Response(JSON.stringify({ message: "No alerts to send" }), { status: 200 });
+    return new Response(JSON.stringify({ message: "Sin alertas pendientes de envío" }), { status: 200 });
   }
 
-  // 2. Group alerts by store so managers get one digest email, not N separate ones
-  const byStore: Record<string, any[]> = {};
+  const byStore: Record<string, typeof alerts> = {};
   for (const alert of alerts) {
-    const storeId = alert.batches?.stores?.id ?? "unknown";
-    byStore[storeId] = byStore[storeId] || [];
+    const storeId = (alert.batches as any)?.stores?.id ?? "unknown";
+    byStore[storeId] = byStore[storeId] ?? [];
     byStore[storeId].push(alert);
   }
 
   const results = [];
 
   for (const [storeId, storeAlerts] of Object.entries(byStore)) {
-    // Find managers/staff for this store to notify
     const { data: recipients } = await supabase
       .from("staff")
       .select("email, full_name, push_token")
       .eq("store_id", storeId)
       .in("role", ["manager", "admin"]);
 
-    const lines = storeAlerts.map((a) => {
-      const p = a.batches?.products;
-      const b = a.batches;
-      return `- ${p?.name} (barcode: ${p?.barcode}, batch: ${b?.batch_number ?? "N/A"}) — ` +
-        `${a.urgency === "expired" ? "EXPIRED" : `expires ${b?.expiry_date} (in ${a.threshold_days} days)`}`;
-    });
+    const expired = storeAlerts.filter((a) => a.urgency === "expired");
+    const expiring = storeAlerts.filter((a) => a.urgency !== "expired");
 
-    const emailBody = `Expiry alert summary:\n\n${lines.join("\n")}`;
+    const pushTokens = (recipients ?? [])
+      .map((r) => r.push_token)
+      .filter((t): t is string => !!t);
 
-    for (const recipient of recipients ?? []) {
-      if (recipient.email) {
+    if (pushTokens.length > 0) {
+      const messages = [];
+      if (expired.length > 0) {
+        messages.push({
+          to: pushTokens,
+          title: "Total Mundo — Lotes vencidos",
+          body: `⚠️ ${expired.length} lote${expired.length === 1 ? "" : "s"} vencido${expired.length === 1 ? "" : "s"} — acción inmediata requerida`,
+          sound: "default",
+        });
+      }
+      if (expiring.length > 0) {
+        messages.push({
+          to: pushTokens,
+          title: "Total Mundo — Próximos a vencer",
+          body: `⏳ ${expiring.length} lote${expiring.length === 1 ? "" : "s"} próximo${expiring.length === 1 ? "" : "s"} a vencer`,
+          sound: "default",
+        });
+      }
+      for (const msg of messages) {
+        await fetch(EXPO_PUSH_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(msg),
+        });
+      }
+    }
+
+    if (RESEND_API_KEY) {
+      const lines = storeAlerts.map((a) => {
+        const p = (a.batches as any)?.products;
+        const b = a.batches as any;
+        const state = a.urgency === "expired"
+          ? "VENCIDO"
+          : `vence ${b?.expiry_date} (en ${a.threshold_days} días)`;
+        return `• ${p?.name ?? "Producto"} (cód: ${p?.barcode ?? "—"}, lote: ${b?.batch_number ?? "S/N"}) — ${state}`;
+      });
+
+      for (const recipient of recipients ?? []) {
+        if (!recipient.email) continue;
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -77,33 +104,27 @@ Deno.serve(async () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: "alerts@yourdomain.com",
+            from: FROM_EMAIL,
             to: recipient.email,
-            subject: `[Expiry Alert] ${storeAlerts.length} product(s) need attention`,
-            text: emailBody,
+            subject: `Total Mundo — ${storeAlerts.length} alerta${storeAlerts.length === 1 ? "" : "s"} de vencimiento`,
+            text: `Hola ${recipient.full_name ?? ""},\n\nResumen de alertas de vencimiento:\n\n${lines.join("\n")}\n\nRevisa el panel de administración para más detalles.`,
           }),
         });
       }
-
-      // Push notification example (Expo) — uncomment when mobile app is wired up
-      // if (recipient.push_token) {
-      //   await fetch(EXPO_PUSH_URL, {
-      //     method: "POST",
-      //     headers: { "Content-Type": "application/json" },
-      //     body: JSON.stringify({
-      //       to: recipient.push_token,
-      //       title: "Expiry Alert",
-      //       body: `${storeAlerts.length} product(s) expiring soon`,
-      //     }),
-      //   });
-      // }
     }
 
-    // 3. Mark these alerts as sent
     const alertIds = storeAlerts.map((a) => a.id);
-    await supabase.from("alerts").update({ sent_at: new Date().toISOString() }).in("id", alertIds);
+    await supabase
+      .from("alerts")
+      .update({ sent_at: new Date().toISOString() })
+      .in("id", alertIds);
 
-    results.push({ storeId, count: storeAlerts.length, recipients: recipients?.length ?? 0 });
+    results.push({
+      storeId,
+      alertCount: storeAlerts.length,
+      pushRecipients: pushTokens.length,
+      emailRecipients: (recipients ?? []).filter((r) => r.email).length,
+    });
   }
 
   return new Response(JSON.stringify({ sent: results }), { status: 200 });

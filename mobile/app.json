@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2F5FE0"
     },
     "updates": {
       "fallbackToCacheTimeout": 0,
@@ -27,11 +27,6 @@
     "android": {
       "package": "com.sylexpress.mallexpirytracker",
       "permissions": [
-        "CAMERA",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "CAMERA",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",

@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Total Mundo Admin",
+    "slug": "total-mundo-admin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#2F5FE0"
+    },
+    "android": {
+      "package": "com.totalmund.admin",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#2F5FE0"
+      },
+      "permissions": []
+    },
+    "owner": "syl-express"
+  }
+}

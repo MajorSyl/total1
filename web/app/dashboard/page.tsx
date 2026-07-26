@@ -45,7 +45,7 @@ type Product = {
   unit: string | null;
 };
 
-type StaffInfo = { id: string; store_id: string; role: string };
+type StaffInfo = { id: string; store_id: string; role: string; full_name: string | null };
 type ScanStep = "lookup" | "batch";
 
 // ---- Helpers ----
@@ -92,6 +92,8 @@ export default function DashboardPage() {
   const [editingBatch, setEditingBatch] = useState<ExpiringBatch | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ExpiringBatch | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sendingAlerts, setSendingAlerts] = useState(false);
+  const [alertSendResult, setAlertSendResult] = useState<string | null>(null);
 
   // Auth guard
   useEffect(() => {
@@ -106,7 +108,7 @@ export default function DashboardPage() {
       if (!data.user) return;
       supabase
         .from("staff")
-        .select("id, store_id, role")
+        .select("id, store_id, role, full_name")
         .eq("auth_user_id", data.user.id)
         .single()
         .then(({ data: row }) => {
@@ -177,6 +179,31 @@ export default function DashboardPage() {
     }
   };
 
+  const handleSendAlerts = async () => {
+    setSendingAlerts(true);
+    setAlertSendResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-expiry-alerts");
+      if (error) throw error;
+      if (data?.message) {
+        setAlertSendResult(data.message);
+      } else if (data?.sent) {
+        const total = (data.sent as any[]).reduce((s: number, r: any) => s + (r.alertCount ?? 0), 0);
+        const pushTotal = (data.sent as any[]).reduce((s: number, r: any) => s + (r.pushRecipients ?? 0), 0);
+        setAlertSendResult(
+          total === 0
+            ? "Sin alertas pendientes de envío."
+            : `${total} alerta${total === 1 ? "" : "s"} enviada${total === 1 ? "" : "s"} a ${pushTotal} dispositivo${pushTotal === 1 ? "" : "s"}.`
+        );
+      }
+      await loadAlerts();
+    } catch (err: any) {
+      setAlertSendResult(`Error: ${err.message ?? "No se pudo enviar."}`);
+    } finally {
+      setSendingAlerts(false);
+    }
+  };
+
   const handleAcknowledge = async (alertId: string) => {
     if (!staffInfo) return;
     await supabase
@@ -244,7 +271,7 @@ export default function DashboardPage() {
       <header className="flex items-center justify-between mb-6">
         <div>
           <p className="text-sm" style={{ color: "#6B7280" }}>Bienvenido,</p>
-          <h1 className="text-lg font-semibold">Gerente</h1>
+          <h1 className="text-lg font-semibold">{staffInfo?.full_name ?? "Cargando…"}</h1>
         </div>
         <button
           onClick={() => setTab("alerts")}
@@ -386,6 +413,38 @@ export default function DashboardPage() {
               Actualizar
             </button>
           </div>
+
+          {(staffInfo?.role === "manager" || staffInfo?.role === "admin") && (
+            <div className="rounded-2xl p-4 mb-4" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+              <p className="text-[13px] font-semibold mb-1">Enviar alertas manualmente</p>
+              <p className="text-xs mb-3" style={{ color: "#6B7280" }}>
+                Envía notificaciones push y correo para todas las alertas aún no enviadas. Usa esto para probar que las notificaciones llegan antes de depender del cron diario.
+              </p>
+              {alertSendResult && (
+                <p
+                  className="text-xs font-medium mb-3 p-2 rounded-lg"
+                  style={{
+                    color: alertSendResult.startsWith("Error") ? "#DC2626" : "#16A34A",
+                    backgroundColor: alertSendResult.startsWith("Error") ? "#FEE2E2" : "#DCFCE7",
+                  }}
+                >
+                  {alertSendResult}
+                </p>
+              )}
+              <button
+                onClick={handleSendAlerts}
+                disabled={sendingAlerts}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  background: sendingAlerts ? "#93c5fd" : "linear-gradient(135deg, #2F5FE0, #4C7DFF)",
+                  cursor: sendingAlerts ? "not-allowed" : "pointer",
+                }}
+              >
+                {sendingAlerts ? "Enviando…" : "📣 Enviar alertas ahora"}
+              </button>
+            </div>
+          )}
+
           <AlertsView alerts={alerts} loading={alertsLoading} error={alertsError} onAcknowledge={handleAcknowledge} />
         </>
       )}
