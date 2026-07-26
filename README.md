@@ -1,17 +1,17 @@
-# Mall Product Expiry Tracker
+# Total Mundo — Expiry Tracker
 
 Full system: Supabase backend, React Native (Expo) mobile app for scanning/registering
-batches, Next.js dashboard for managers.
+batches, Next.js dashboard for managers, Expo WebView manager app.
 
 ## What's here
 
 ```
 total1/
-├── schema.sql                  # Applied — creates all tables + pg_cron job
-├── rls_policies.sql            # Applied — locks data access down by store/role
+├── schema.sql                  # Core schema — run this first in SQL Editor
+├── rls_policies.sql            # RLS policies — run after schema.sql
 ├── send-expiry-alerts/
-│   └── index.ts                # Supabase Edge Function — sends daily digest emails (deployed)
-├── mobile/                     # Expo app: login → scan → register batch
+│   └── index.ts                # Supabase Edge Function — push + email alerts (deploy via CLI)
+├── mobile/                     # Expo app: staff login → scan → register batch
 │   ├── App.tsx
 │   ├── package.json
 │   ├── app.json
@@ -21,6 +21,11 @@ total1/
 │       ├── BarcodeScanScreen.tsx
 │       ├── BatchEntryScreen.tsx
 │       └── NewProductScreen.tsx
+├── manager-app/                # Expo WebView wrapper — loads dashboard in a native shell
+│   ├── App.tsx
+│   ├── app.json
+│   ├── eas.json
+│   └── package.json
 └── web/                        # Next.js manager dashboard
     ├── package.json
     ├── tailwind.config.js
@@ -34,89 +39,129 @@ total1/
         └── dashboard/page.tsx
 ```
 
-## Live demo credentials (already wired up)
+## Supabase project (dedicated — Total Mundo only)
 
-**Supabase project:** `axeprqcffgwgocglijst`  
-**URL:** `https://axeprqcffgwgocglijst.supabase.co`  
-**Anon key:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4ZXBycWNmZmd3Z29jZ2xpanN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1ODQ2ODcsImV4cCI6MjEwMDE2MDY4N30.2xb3Fam5IKNwHCbVTsIWpea7fWXVYcUJP6YzcseddOY`
+**Project ref:** `fnvhevpxpsyyvxqobfmp`
+**URL:** `https://fnvhevpxpsyyvxqobfmp.supabase.co`
+**Anon key:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZudmhldnB4cHN5eXZ4cW9iZm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDIyMTcsImV4cCI6MjEwMDYxODIxN30.L2V7L32IKxLTl6zq6ewm-naPr9NQBjZ49yWs0ijavYA`
 
-**Test login:**
-- Email: `admin@malltest.com`
-- Password: `Mall@2026!`
-- Role: admin, Store: Test Mall – Main Branch
-
-**Seeded demo data (7 batches):**
-
-| Product | Barcode | Expiry | Status |
-|---------|---------|--------|--------|
-| Fresh Milk 1L | 6001234000001 | 2026-07-22 | **EXPIRED** |
-| Yoghurt 500ml | 6001234000002 | 2026-07-21 | **EXPIRED** |
-| Orange Juice 2L | 6001234000003 | 2026-07-25 | Urgent (1d) |
-| Bread Loaf | 6001234000004 | 2026-07-26 | Urgent (2d) |
-| Cheddar Cheese 500g | 6001234000005 | 2026-07-31 | 7d |
-| Butter 250g | 6001234000006 | 2026-08-23 | 30d |
-| Pasta 500g | 6001234000007 | 2027-07-24 | 365d |
-
-Both `.env.local` (web) and `.env` (mobile) are pre-populated with the above credentials.
+Both `web/.env.local` and `mobile/.env` are pre-populated with these values.
 
 ---
 
-## Run it locally right now
+## First-time setup (one-off, done by admin)
+
+### 1. Run schema in Supabase SQL Editor
+
+Go to `https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/sql` → New query.
+Paste the full contents of `schema.sql`, run it.
+Then paste the full contents of `rls_policies.sql`, run it.
+
+See `migration_complete.sql` in the project root for a single combined script that includes
+all tables, functions, RLS, and seed data (alert thresholds).
+
+### 2. Create the first admin auth account
+
+In Supabase Dashboard → Authentication → Users → Invite user (or Add user):
+- Enter the manager's real email + password
+- Copy the user ID shown after creation
+
+Then in SQL Editor:
+```sql
+-- Replace the values below with real ones
+insert into stores (name, location)
+values ('Total Mundo', 'Tu dirección aquí')
+returning id;
+-- Copy the store ID from the output, then:
+
+insert into staff (auth_user_id, store_id, full_name, role, email)
+values (
+  '<auth_user_id from above>',
+  '<store_id from above>',
+  'Nombre del Gerente',
+  'admin',
+  'correo@real.com'
+);
+```
+
+### 3. Deploy the edge function
+
+```bash
+# From the project root, using Supabase CLI (supabase.com/docs/guides/cli)
+supabase login                          # sign in with your Supabase account
+supabase functions deploy send-expiry-alerts \
+  --project-ref fnvhevpxpsyyvxqobfmp \
+  --no-verify-jwt
+```
+
+Then in Dashboard → Edge Functions → `send-expiry-alerts` → Secrets, add:
+- `RESEND_API_KEY` — from resend.com (free for low volume)
+- `ALERT_FROM_EMAIL` — a verified sender address in your Resend account
+
+### 4. Schedule the daily jobs
+
+In Supabase Dashboard → Database → Extensions → enable `pg_cron`.
+
+Then in SQL Editor:
+```sql
+-- Run the expiry check at 6:00am daily
+select cron.schedule('daily-expiry-check', '0 6 * * *', $$ select check_expiry_thresholds(); $$);
+-- Send alerts at 6:05am (after check)
+select cron.schedule('daily-alert-send', '5 6 * * *',
+  $$ select net.http_post(url := 'https://fnvhevpxpsyyvxqobfmp.supabase.co/functions/v1/send-expiry-alerts',
+     headers := '{"Authorization": "Bearer <SERVICE_ROLE_KEY>"}'::jsonb) $$);
+```
+
+### 5. Update Vercel environment variables
+
+In your Vercel project settings → Environment Variables, update:
+- `NEXT_PUBLIC_SUPABASE_URL` → `https://fnvhevpxpsyyvxqobfmp.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` → (the anon key above)
+
+Redeploy after updating.
+
+---
+
+## Build the apps
+
+### Staff scanning APK (Expo — mobile/)
+```bash
+git pull origin claude/mall-expiry-delivery-tfk05w
+cd mobile
+eas build --platform android --profile preview --non-interactive
+```
+
+### Manager admin APK (Expo WebView — manager-app/)
+```bash
+cd manager-app
+eas update:configure    # adds EAS projectId to app.json
+eas build --platform android --profile preview --non-interactive
+```
+
+Both builds use the `syl-express` Expo account. Supply your current EXPO_TOKEN — do not reuse old tokens.
+
+---
+
+## Run locally
 
 ### Web dashboard
 ```bash
-cd web
-npm install        # already done; re-run if you get module errors
-npm run dev
+cd web && npm install && npm run dev
 ```
-Visit `http://localhost:3000` — it redirects to `/login`, sign in with the test credentials above.
+Visit `http://localhost:3000`.
 
 ### Mobile app
 ```bash
-cd mobile
-npm install        # already done
-npx expo start
+cd mobile && npm install && npx expo start
 ```
-Scan the QR with Expo Go on your phone, or press `i` for iOS simulator / `a` for Android.
+Scan QR with Expo Go on a real device (camera scanning requires a real phone).
 
 ---
 
-## Deploy the web dashboard to Vercel (2-minute manual step)
+## Known gaps before production use
 
-The automated deploy hit a permissions issue. Here's the manual path:
-
-1. Go to **[vercel.com](https://vercel.com)** → **Add New → Project**
-2. Import the **`MajorSyl/total1`** repository from GitHub
-3. Set **Root Directory** to `web`
-4. Under **Environment Variables**, add:
-   - `NEXT_PUBLIC_SUPABASE_URL` = `https://axeprqcffgwgocglijst.supabase.co`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4ZXBycWNmZmd3Z29jZ2xpanN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1ODQ2ODcsImV4cCI6MjEwMDE2MDY4N30.2xb3Fam5IKNwHCbVTsIWpea7fWXVYcUJP6YzcseddOY`
-5. Click **Deploy** — done in ~90 seconds
-
-The Next.js build already passes cleanly (4 routes, 0 errors), so the deploy will succeed on the first try.
-
----
-
-## Edge Function (daily expiry alerts) — already deployed
-
-The `send-expiry-alerts` function is live on Supabase and fires when called. To wire up email sending:
-
-1. Get a free API key at [resend.com](https://resend.com)
-2. In Supabase Dashboard → Edge Functions → `send-expiry-alerts` → Secrets, add:
-   - `RESEND_API_KEY` = your key
-3. Update `from: "alerts@yourdomain.com"` in `send-expiry-alerts/index.ts` to your verified sender domain in Resend
-4. Schedule: Dashboard → Edge Functions → `send-expiry-alerts` → Cron → set to `10 6 * * *` (runs at 6:10am daily, after the DB job at 6:00am)
-
-Without the Resend key set, the function runs safely and returns success — it just won't send emails.
-
----
-
-## Honest gaps — tell the client these
-
-- **Vercel deploy is manual** (see steps above). Once done, the link is live forever and future pushes deploy automatically via GitHub.
-- **Mobile barcode scanning needs a real device.** `expo-camera` doesn't work in web browser or most simulators. Expo Go on any Android or iOS phone works fine.
-- **Email alerts need a Resend account.** Edge Function is deployed and functional; email delivery requires the Resend key above (~5 minutes to set up).
-- **Push notifications are stubbed, not wired.** The code is in the Edge Function but commented out. Turning it on needs push tokens saved per staff member — a follow-up sprint item.
-- **App Store / Play Store distribution is not same-day.** Expo Go works immediately on any device. Native store builds via `eas build` + Apple/Google review take 1–3 days minimum. Don't promise that to the client.
-- **No automated test suite.** Everything is hand-verifiable; tests are a follow-up.
-- **Not load-tested.** Fine for one mall's inventory. If it scales to dozens of branches, benchmark `check_expiry_thresholds()` at that volume first.
+- **Push tokens**: staff must open the mobile app at least once to register a push token. Without a token the `send-expiry-alerts` function skips push delivery.
+- **Email**: needs Resend key + verified sender domain (see step 3 above).
+- **No error monitoring**: Sentry or equivalent not installed.
+- **Barcode scanning requires a real device**: camera doesn't work in simulators or browsers.
+- **Store/App distribution**: `eas build` produces APKs for sideloading. Play Store / App Store review takes 1–3 days and is separate.
