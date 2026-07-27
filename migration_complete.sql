@@ -103,6 +103,8 @@ create index idx_alerts_sent on alerts(sent_at);
 create or replace function current_staff()
 returns table (id uuid, store_id uuid, role text)
 language sql stable
+security definer
+set search_path = public
 as $$
   select id, store_id, role from staff where auth_user_id = auth.uid();
 $$;
