@@ -15,16 +15,11 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const FROM_EMAIL = Deno.env.get("ALERT_FROM_EMAIL") ?? "alertas@totalmund.com";
 
 Deno.serve(async () => {
+  // Step 1: simple query with no nested joins — avoids PostgREST 3-level
+  // join issues that silently return zero rows on fresh projects.
   const { data: alerts, error } = await supabase
     .from("alerts")
-    .select(
-      `id, threshold_days, urgency,
-       batches (
-         id, expiry_date, quantity, batch_number,
-         products ( name, barcode, category ),
-         stores ( id, name )
-       )`
-    )
+    .select("id, threshold_days, urgency, batch_id")
     .is("sent_at", null);
 
   if (error) {
@@ -35,11 +30,29 @@ Deno.serve(async () => {
     return new Response(JSON.stringify({ message: "Sin alertas pendientes de envío" }), { status: 200 });
   }
 
-  const byStore: Record<string, typeof alerts> = {};
+  // Step 2: fetch batch details (one level deep — products and stores)
+  const batchIds = [...new Set(alerts.map((a) => a.batch_id as string))];
+  const { data: batches, error: batchError } = await supabase
+    .from("batches")
+    .select("id, expiry_date, quantity, batch_number, store_id, products ( name, barcode, category ), stores ( id, name )")
+    .in("id", batchIds);
+
+  if (batchError) {
+    return new Response(JSON.stringify({ error: batchError.message }), { status: 500 });
+  }
+
+  const batchMap: Record<string, any> = {};
+  for (const b of batches ?? []) {
+    batchMap[b.id] = b;
+  }
+
+  // Group enriched alerts by store
+  const byStore: Record<string, any[]> = {};
   for (const alert of alerts) {
-    const storeId = (alert.batches as any)?.stores?.id ?? "unknown";
+    const batch = batchMap[alert.batch_id as string];
+    const storeId = (batch as any)?.stores?.id ?? "unknown";
     byStore[storeId] = byStore[storeId] ?? [];
-    byStore[storeId].push(alert);
+    byStore[storeId].push({ ...alert, batch });
   }
 
   const results = [];
@@ -87,8 +100,8 @@ Deno.serve(async () => {
 
     if (RESEND_API_KEY) {
       const lines = storeAlerts.map((a) => {
-        const p = (a.batches as any)?.products;
-        const b = a.batches as any;
+        const p = (a.batch as any)?.products;
+        const b = a.batch as any;
         const state = a.urgency === "expired"
           ? "VENCIDO"
           : `vence ${b?.expiry_date} (en ${a.threshold_days} días)`;
