@@ -1,178 +1,293 @@
 # Total Mundo — Expiry Tracker
 
-Full system: Supabase backend, React Native (Expo) mobile app for scanning/registering
-batches, Next.js dashboard for managers, Expo WebView manager app.
+Product expiry tracking for a retail shop. Staff scan barcodes on a phone to
+register batches; managers watch a web dashboard; the system emails and pushes
+alerts as products approach their expiry date.
 
-## What's here
+Four parts: a Supabase backend, a React Native (Expo) scanning app, a Next.js
+manager dashboard, and an Expo WebView wrapper around that dashboard.
 
-```
-total1/
-├── schema.sql                  # Core schema — run this first in SQL Editor
-├── rls_policies.sql            # RLS policies — run after schema.sql
-├── send-expiry-alerts/
-│   └── index.ts                # Supabase Edge Function — push + email alerts (deploy via CLI)
-├── mobile/                     # Expo app: staff login → scan → register batch
-│   ├── App.tsx
-│   ├── package.json
-│   ├── app.json
-│   ├── lib/supabase.ts
-│   └── screens/
-│       ├── LoginScreen.tsx
-│       ├── BarcodeScanScreen.tsx
-│       ├── BatchEntryScreen.tsx
-│       └── NewProductScreen.tsx
-├── manager-app/                # Expo WebView wrapper — loads dashboard in a native shell
-│   ├── App.tsx
-│   ├── app.json
-│   ├── eas.json
-│   └── package.json
-└── web/                        # Next.js manager dashboard
-    ├── package.json
-    ├── tailwind.config.js
-    ├── postcss.config.js
-    ├── lib/supabase.ts
-    └── app/
-        ├── layout.tsx
-        ├── globals.css
-        ├── page.tsx             (redirects / → /login)
-        ├── login/page.tsx       (auth gate)
-        └── dashboard/page.tsx
-```
+---
 
 ## Live URLs
 
 **Manager dashboard:** https://mall-expiry-dashboard.vercel.app
 
 This is the canonical deployment — the one `manager-app/` wraps in its WebView.
-Other Vercel URLs exist (`mall-expiry-v2`, and the `-majorsyls-projects` team-suffixed
-variant) but are stale or gated by deployment protection. Don't use them.
+Other Vercel URLs exist (`mall-expiry-v2.vercel.app`, and the
+`-majorsyls-projects` team-suffixed variant) but are stale or gated by
+deployment protection. Don't use them.
 
-There is **no web link for scanning.** Barcode scanning needs the device camera, so it
-only works in the installed `mobile/` APK — see "Build the apps" below.
-
-## Supabase project (dedicated — Total Mundo only)
-
-**Project ref:** `fnvhevpxpsyyvxqobfmp`
-**URL:** `https://fnvhevpxpsyyvxqobfmp.supabase.co`
-**Anon key:** `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZudmhldnB4cHN5eXZ4cW9iZm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDIyMTcsImV4cCI6MjEwMDYxODIxN30.L2V7L32IKxLTl6zq6ewm-naPr9NQBjZ49yWs0ijavYA`
-
-Both `web/.env.local` and `mobile/.env` are pre-populated with these values.
+**There is no web link for scanning.** Barcode scanning needs the device
+camera, so it only works in the installed `mobile/` APK. The web app has
+exactly three routes — `/`, `/login`, `/dashboard` — and none of them scan.
+The link you give workers is the EAS install page produced by a build; see
+[Building the apps](#building-the-apps).
 
 ---
 
-## First-time setup (one-off, done by admin)
+## Which project, which login
 
-### 1. Run schema in Supabase SQL Editor
+Two Supabase projects are in play. Most confusion so far has come from mixing
+them up, so check this table before debugging a login.
 
-Go to `https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/sql` → New query.
-Paste the full contents of `schema.sql`, run it.
-Then paste the full contents of `rls_policies.sql`, run it.
+| Surface | Talks to | Log in with |
+|---|---|---|
+| Installed APK (built before the migration) | **old** | `admin@malltest.com` / `Mall@2026!` |
+| `mall-expiry-dashboard.vercel.app` | **old**, until Vercel env vars are updated | `admin@malltest.com` / `Mall@2026!` |
+| New APK (after rebuilding) | **new** | the admin account created in the new project |
+| Supabase dashboard pages | either | your Supabase account |
 
-See `migration_complete.sql` in the project root for a single combined script that includes
-all tables, functions, RLS, and seed data (alert thresholds).
+**New project (dedicated — Total Mundo only)**
 
-### 2. Create the first admin auth account
+- Ref: `fnvhevpxpsyyvxqobfmp`
+- URL: `https://fnvhevpxpsyyvxqobfmp.supabase.co`
+- Dashboard: https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp
+- Anon key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZudmhldnB4cHN5eXZ4cW9iZm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNDIyMTcsImV4cCI6MjEwMDYxODIxN30.L2V7L32IKxLTl6zq6ewm-naPr9NQBjZ49yWs0ijavYA`
 
-In Supabase Dashboard → Authentication → Users → Invite user (or Add user):
-- Enter the manager's real email + password
-- Copy the user ID shown after creation
+`web/.env.local` and `mobile/.env` already hold these values, and both
+`lib/supabase.ts` files fall back to them.
 
-Then in SQL Editor:
+**Old project** — `axeprqcffgwgocglijst` ("Easyfen"). Shared with an unrelated
+hotel/listings app; that mixing is why we migrated. It holds 8 auth users but
+only one has a Total Mundo staff row (`admin@malltest.com`). Kept alive only so
+the pre-migration APK keeps working during the transition.
+
+> Anything scanned with the old APK lands in the old project. It will **not**
+> raise alerts and will **not** appear on the new dashboard. Fine for testing
+> that scanning works; not for real inventory.
+
+---
+
+## Status
+
+Done:
+
+- Schema, RLS, functions, and views migrated to the new project
+- `send-expiry-alerts` edge function deployed to the new project
+- Email alerts confirmed working end to end (Resend)
+- Web and mobile source both point at the new project
+
+Pending — each needs someone with access to do it:
+
+1. **Update Vercel env vars** to the new project, then redeploy —
+   [step 5](#5-update-vercel-environment-variables)
+2. **Build the scanning APK** — the only way to get a worker install link
+3. **Create worker accounts** in the new project — see
+   [Adding workers](#adding-workers)
+4. **Enable `pg_cron`** so alerts run daily instead of being triggered by hand
+5. **Delete the test batches** left over from setup (`worker_setup.sql` §3)
+
+Push notifications are unverified. They need a build carrying a valid EAS
+projectId, and a staff member to open the app once so a token gets registered.
+
+---
+
+## What's here
+
+```
+total1/
+├── schema.sql                  # Core schema
+├── rls_policies.sql            # RLS policies — run after schema.sql
+├── migration_complete.sql      # Both of the above, combined, plus seed data
+├── worker_setup.sql            # link_staff(), access view, cron, cleanup
+├── send-expiry-alerts/
+│   └── index.ts                # Edge Function — push + email digests
+├── mobile/                     # Expo app: login → scan → register batch
+│   ├── App.tsx
+│   ├── lib/supabase.ts
+│   └── screens/
+│       ├── LoginScreen.tsx
+│       ├── BarcodeScanScreen.tsx
+│       ├── BatchEntryScreen.tsx
+│       ├── NewProductScreen.tsx
+│       └── StoreInventoryScreen.tsx
+├── manager-app/                # Expo WebView wrapper around the dashboard
+│   ├── App.tsx                 # DASHBOARD_URL lives here
+│   └── eas.json
+└── web/                        # Next.js manager dashboard
+    ├── lib/supabase.ts
+    └── app/
+        ├── page.tsx            # redirects / → /login
+        ├── login/page.tsx
+        └── dashboard/page.tsx
+```
+
+---
+
+## First-time setup
+
+Already done on the current project. Repeat only when standing up a fresh one.
+
+### 1. Run the schema
+
+Open the [SQL Editor](https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/sql/new),
+paste all of `migration_complete.sql`, run it. It creates every table, index,
+function, view, and RLS policy, and seeds the alert thresholds.
+
+> `current_staff()` must keep its `security definer`. Without it, RLS on
+> `staff` calls the function, which queries `staff`, which triggers RLS again —
+> the app fails with `stack depth limit exceeded`.
+
+### 2. Create the store and first admin
+
+In [Authentication → Users](https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/auth/users),
+add a user with the manager's real email and a password. Then in the SQL Editor:
+
 ```sql
--- Replace the values below with real ones
 insert into stores (name, location)
-values ('Total Mundo', 'Tu dirección aquí')
-returning id;
--- Copy the store ID from the output, then:
+values ('Total Mundo', 'Tu dirección aquí');
 
-insert into staff (auth_user_id, store_id, full_name, role, email)
-values (
-  '<auth_user_id from above>',
-  '<store_id from above>',
-  'Nombre del Gerente',
-  'admin',
-  'correo@real.com'
-);
+-- then, once worker_setup.sql has been run:
+select link_staff('correo@real.com', 'Nombre del Gerente', 'admin');
 ```
 
 ### 3. Deploy the edge function
 
 ```bash
-# From the project root, using Supabase CLI (supabase.com/docs/guides/cli)
-supabase login                          # sign in with your Supabase account
+export SUPABASE_ACCESS_TOKEN=<token from supabase.com/dashboard/account/tokens>
 supabase functions deploy send-expiry-alerts \
   --project-ref fnvhevpxpsyyvxqobfmp \
   --no-verify-jwt
 ```
 
-Then in Dashboard → Edge Functions → `send-expiry-alerts` → Secrets, add:
-- `RESEND_API_KEY` — from resend.com (free for low volume)
-- `ALERT_FROM_EMAIL` — a verified sender address in your Resend account
+`supabase login` can't open a browser in a remote/Codespaces shell, which is
+why the token is exported directly.
+
+Then under Edge Functions → Secrets, set:
+
+- `RESEND_API_KEY` — from resend.com
+- `ALERT_FROM_EMAIL` — a verified sender in your Resend account
 
 ### 4. Schedule the daily jobs
 
-In Supabase Dashboard → Database → Extensions → enable `pg_cron`.
-
-Then in SQL Editor:
-```sql
--- Run the expiry check at 6:00am daily
-select cron.schedule('daily-expiry-check', '0 6 * * *', $$ select check_expiry_thresholds(); $$);
--- Send alerts at 6:05am (after check)
-select cron.schedule('daily-alert-send', '5 6 * * *',
-  $$ select net.http_post(url := 'https://fnvhevpxpsyyvxqobfmp.supabase.co/functions/v1/send-expiry-alerts',
-     headers := '{"Authorization": "Bearer <SERVICE_ROLE_KEY>"}'::jsonb) $$);
-```
+Enable `pg_cron` and `pg_net` under
+[Database → Extensions](https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/database/extensions),
+then uncomment and run §4 of `worker_setup.sql`. Times there are UTC;
+Venezuela is UTC-4, so `0 10 * * *` fires at 6:00am local.
 
 ### 5. Update Vercel environment variables
 
-In your Vercel project settings → Environment Variables, update:
-- `NEXT_PUBLIC_SUPABASE_URL` → `https://fnvhevpxpsyyvxqobfmp.supabase.co`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` → (the anon key above)
+In the Vercel project settings:
 
-Redeploy after updating.
+- `NEXT_PUBLIC_SUPABASE_URL` → `https://fnvhevpxpsyyvxqobfmp.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` → the anon key above
+
+Redeploy afterwards — env var changes don't apply to existing deployments.
 
 ---
 
-## Build the apps
+## Adding workers
 
-### Staff scanning APK (Expo — mobile/)
+Run `worker_setup.sql` once first; it defines the helper.
+
+1. [Authentication → Users](https://supabase.com/dashboard/project/fnvhevpxpsyyvxqobfmp/auth/users)
+   → Add user → their email and a password
+2. In the SQL Editor:
+
+```sql
+select link_staff('trabajador@ejemplo.com', 'Juan Pérez');            -- staff
+select link_staff('gerente@ejemplo.com',    'Ana Gómez', 'manager');  -- manager
+```
+
+It resolves the user by email, attaches the store, and creates the staff row,
+returning `OK: …` or an error saying what's missing. Re-running it updates
+rather than duplicating.
+
+Both steps are required. An auth user with no staff row can authenticate but
+gets turned away at the app's second check.
+
+To see everyone and spot incomplete accounts:
+
+```sql
+select * from v_staff_access;
+```
+
+`SIN PERFIL` in the role column means an auth user with no staff row.
+
+---
+
+## Building the apps
+
+Always pull first — builds run from the working tree, so stale code ships
+silently.
+
 ```bash
 git pull origin claude/mall-expiry-delivery-tfk05w
-cd mobile
-eas build --platform android --profile preview --non-interactive
 ```
 
-### Manager admin APK (Expo WebView — manager-app/)
+### Scanning app (mobile/)
+
+```bash
+cd mobile
+npm install
+export EXPO_TOKEN=<your current EXPO_TOKEN>
+npx eas-cli@latest build --platform android --profile preview
+```
+
+The `preview` profile sets `distribution: internal`, so EAS returns a
+**shareable install page**. That URL is what you send to workers — they open
+it on an Android phone, tap install, and allow "install from unknown sources".
+It's also listed under expo.dev → `syl-express` → project `total` → Builds.
+
+### Manager app (manager-app/)
+
 ```bash
 cd manager-app
-eas update:configure    # adds EAS projectId to app.json
-eas build --platform android --profile preview --non-interactive
+eas update:configure    # only if app.json has no EAS projectId yet
+npx eas-cli@latest build --platform android --profile preview
 ```
 
-Both builds use the `syl-express` Expo account. Supply your current EXPO_TOKEN — do not reuse old tokens.
+Both build under the `syl-express` Expo account. Supply your current
+`EXPO_TOKEN` at build time; don't reuse old tokens.
 
 ---
 
-## Run locally
+## Running locally
 
-### Web dashboard
 ```bash
-cd web && npm install && npm run dev
+cd web && npm install && npm run dev        # http://localhost:3000
+cd mobile && npm install && npx expo start  # scan the QR with Expo Go
 ```
-Visit `http://localhost:3000`.
 
-### Mobile app
-```bash
-cd mobile && npm install && npx expo start
-```
-Scan QR with Expo Go on a real device (camera scanning requires a real phone).
+Camera scanning needs a real device — it does not work in a simulator or a
+browser.
 
 ---
 
-## Known gaps before production use
+## Troubleshooting
 
-- **Push tokens**: staff must open the mobile app at least once to register a push token. Without a token the `send-expiry-alerts` function skips push delivery.
-- **Email**: needs Resend key + verified sender domain (see step 3 above).
-- **No error monitoring**: Sentry or equivalent not installed.
-- **Barcode scanning requires a real device**: camera doesn't work in simulators or browsers.
-- **Store/App distribution**: `eas build` produces APKs for sideloading. Play Store / App Store review takes 1–3 days and is separate.
+**`Network request failed` at login (mobile)**
+The device can't reach `supabase.co`. The project itself is usually fine —
+check its status in the dashboard before assuming an outage. Test with WiFi
+off, on mobile data; if that works, the WiFi network is blocking Supabase. A
+VPN is the workaround. Both projects share the `supabase.co` domain, so
+rebuilding the APK does not avoid this.
+
+**`Invalid login credentials`**
+The request reached Supabase and the email/password didn't match. Usually the
+account belongs to the *other* project — check the table at the top.
+
+**"Cuenta no configurada" / no staff profile**
+Auth succeeded but there's no staff row. Fix with `link_staff()`.
+
+**`stack depth limit exceeded` when saving a batch**
+`current_staff()` lost its `security definer`. Re-run that function definition
+from `migration_complete.sql`.
+
+**Edge function reports no pending alerts when alerts exist**
+PostgREST silently returns zero rows for three-level nested joins on fresh
+projects. `send-expiry-alerts/index.ts` splits the query in two to avoid this —
+don't recombine them.
+
+---
+
+## Known gaps
+
+- **Push notifications unverified** — needs a build with a valid EAS projectId
+  and a staff member to open the app once so a token registers
+- **No error monitoring** — no Sentry or equivalent
+- **Single store assumed** — `link_staff()` picks the oldest store; it needs a
+  store argument before a second location is added
+- **Distribution is sideloading** — `eas build` produces APKs installed by
+  link. Play Store review is a separate 1–3 day process.
