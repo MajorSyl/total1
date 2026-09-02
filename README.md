@@ -39,6 +39,17 @@ total1/
         └── dashboard/page.tsx
 ```
 
+## Live URLs
+
+**Manager dashboard:** https://mall-expiry-dashboard.vercel.app
+
+This is the canonical deployment — the one `manager-app/` wraps in its WebView.
+Other Vercel URLs exist (`mall-expiry-v2`, and the `-majorsyls-projects` team-suffixed
+variant) but are stale or gated by deployment protection. Don't use them.
+
+There is **no web link for scanning.** Barcode scanning needs the device camera, so it
+only works in the installed `mobile/` APK — see "Build the apps" below.
+
 ## Supabase project (dedicated — Total Mundo only)
 
 **Project ref:** `fnvhevpxpsyyvxqobfmp`

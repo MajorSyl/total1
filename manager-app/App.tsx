@@ -10,7 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import WebView from 'react-native-webview';
 
-const DASHBOARD_URL = 'https://mall-expiry-dashboard-majorsyls-projects.vercel.app';
+const DASHBOARD_URL = 'https://mall-expiry-dashboard.vercel.app';
 
 export default function App() {
   const webViewRef = useRef<WebView>(null);
