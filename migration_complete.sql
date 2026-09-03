@@ -95,6 +95,7 @@ create index idx_batches_status on batches(status);
 create index idx_batches_store on batches(store_id);
 create index idx_alerts_batch on alerts(batch_id);
 create index idx_alerts_sent on alerts(sent_at);
+create index idx_staff_auth_user_id on staff(auth_user_id);
 
 -- ============================================================
 -- FUNCTIONS

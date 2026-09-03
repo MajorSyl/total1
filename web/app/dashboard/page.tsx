@@ -216,10 +216,14 @@ export default function DashboardPage() {
 
   const handleAcknowledge = async (alertId: string) => {
     if (!staffInfo) return;
-    await supabase
+    const { error } = await supabase
       .from("alerts")
       .update({ acknowledged_at: new Date().toISOString(), acknowledged_by: staffInfo.id })
       .eq("id", alertId);
+    if (error) {
+      alert(error.message ?? "No se pudo marcar la alerta como vista.");
+      return;
+    }
     loadAlerts();
   };
 
