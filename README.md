@@ -34,9 +34,21 @@ them up, so check this table before debugging a login.
 | Surface | Talks to | Log in with |
 |---|---|---|
 | Installed APK (built before the migration) | **old** | `admin@malltest.com` / `Mall@2026!` |
-| `mall-expiry-dashboard.vercel.app` | **old**, until Vercel env vars are updated | `admin@malltest.com` / `Mall@2026!` |
-| New APK (after rebuilding) | **new** | the admin account created in the new project |
+| `mall-expiry-dashboard.vercel.app` | unconfirmed — see below | see below |
+| New APK (after rebuilding) | **new** | `fannah2026@gmail.com` (the only staff account on the new project) |
 | Supabase dashboard pages | either | your Supabase account |
+
+**Telling the dashboard's two builds apart on sight** — the login page itself
+tells you which project it's hitting, no digging required:
+
+- **Dark background, Spanish** ("Total Mundo" / "Acceso de gerente") → current
+  code, **new** project → log in with `fannah2026@gmail.com`
+- **Light blue, English** ("MALL EXPIRY TRACKER" / "Manager sign in") → old
+  build, **old** project → log in with `admin@malltest.com` / `Mall@2026!`
+
+As of this writing `mall-expiry-dashboard.vercel.app` has not been redeployed
+since the migration, so it's most likely still the old build — but check the
+page rather than assume.
 
 **New project (dedicated — Total Mundo only)**
 
@@ -63,20 +75,32 @@ the pre-migration APK keeps working during the transition.
 
 Done:
 
-- Schema, RLS, functions, and views migrated to the new project
+- Schema, RLS, functions, and views migrated to the new project — verified
+  directly against the live database, not just assumed from the migration file
+- `current_staff()` confirmed `security definer`; RLS confirmed enabled on all
+  7 tables with the expected policy counts
 - `send-expiry-alerts` edge function deployed to the new project
 - Email alerts confirmed working end to end (Resend)
 - Web and mobile source both point at the new project
+- `worker_setup.sql` applied — `link_staff()` and `v_staff_access` exist and
+  work
+- `pg_cron` and `pg_net` enabled; both daily jobs scheduled and confirmed
+  active (`daily-expiry-check` at 0 10 UTC, `daily-alert-send` at 5 10 UTC —
+  6:00/6:05am Venezuela time)
+- Test data cleaned up — the `Prueba Push` product/batch/alert (barcode
+  `9999999999999`) deleted. The `Tam` batch was deliberately left alone: its
+  barcode and category look like a real product, not obvious test data —
+  worth a manual look before assuming it's junk
 
 Pending — each needs someone with access to do it:
 
-1. **Update Vercel env vars** to the new project, then redeploy —
-   [step 5](#5-update-vercel-environment-variables)
-2. **Build the scanning APK** — the only way to get a worker install link
+1. **Redeploy the Vercel dashboard against the new project** — blocked from
+   this environment; see [Known gaps](#known-gaps)
+2. **Build the scanning APK** — also blocked from this environment; same
+   reason
 3. **Create worker accounts** in the new project — see
-   [Adding workers](#adding-workers)
-4. **Enable `pg_cron`** so alerts run daily instead of being triggered by hand
-5. **Delete the test batches** left over from setup (`worker_setup.sql` §3)
+   [Adding workers](#adding-workers). Only one staff account exists so far
+   (`fannah2026@gmail.com`, admin)
 
 Push notifications are unverified. They need a build carrying a valid EAS
 projectId, and a staff member to open the app once so a token gets registered.
@@ -174,6 +198,12 @@ In the Vercel project settings:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → the anon key above
 
 Redeploy afterwards — env var changes don't apply to existing deployments.
+
+Note: `web/lib/supabase.ts` already falls back to the new project's URL/key if
+these env vars are unset, so if Vercel has never had them explicitly set to
+the *old* project, a plain redeploy of current code is enough on its own —
+skip straight to redeploying and check the result before assuming you need to
+touch env vars at all.
 
 ---
 
@@ -291,3 +321,13 @@ don't recombine them.
   store argument before a second location is added
 - **Distribution is sideloading** — `eas build` produces APKs installed by
   link. Play Store review is a separate 1–3 day process.
+- **`eas build` and `vercel deploy` cannot run from a Claude Code remote
+  session** — that environment's network egress proxy rejects direct
+  connections to `api.expo.dev` and `api.vercel.com` outright ("organization
+  policy"), independent of any token or account. `npx eas-cli` and `npx
+  vercel` both install and run fine there, so this looks like an auth problem
+  but isn't — it fails before authentication is even checked. MCP-based tools
+  (Supabase, and Vercel's *read* tools) work in that environment because they
+  route through a different, allowed channel; there's no equivalent for Expo.
+  Run both commands from a machine with normal internet access instead —
+  don't waste time troubleshooting tokens.
