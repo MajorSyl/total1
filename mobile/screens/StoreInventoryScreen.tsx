@@ -5,9 +5,15 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
+import type { RootStackParamList } from "../App";
+
+type Nav = NativeStackNavigationProp<RootStackParamList, "StoreInventory">;
 
 type BatchItem = {
   batch_id: string;
@@ -45,6 +51,7 @@ function formatDate(isoDate: string): string {
 }
 
 export default function StoreInventoryScreen() {
+  const navigation = useNavigation<Nav>();
   const [batches, setBatches] = useState<BatchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -137,12 +144,19 @@ export default function StoreInventoryScreen() {
           const label =
             b.days_remaining <= 0 ? "Vencido" : `${b.days_remaining}d restantes`;
           return (
-            <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.row}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate("BatchDetail", { batchId: b.batch_id })}
+            >
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{initials(b.product_name)}</Text>
               </View>
               <View style={styles.info}>
                 <Text style={styles.name} numberOfLines={1}>{b.product_name}</Text>
+                <Text style={styles.meta} numberOfLines={1}>
+                  Código: {b.barcode}
+                </Text>
                 <Text style={styles.meta}>
                   {b.category ?? "Sin categoría"} · {b.quantity} unid. · vence {formatDate(b.expiry_date)}
                 </Text>
@@ -150,7 +164,7 @@ export default function StoreInventoryScreen() {
               <View style={[styles.chip, { backgroundColor: bg }]}>
                 <Text style={[styles.chipText, { color: fg }]}>{label}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />

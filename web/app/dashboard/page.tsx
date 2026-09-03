@@ -554,7 +554,6 @@ function BatchList({
   onEdit: (b: ExpiringBatch) => void;
   onDelete: (b: ExpiringBatch) => void;
 }) {
-  const isManager = staffInfo?.role === "manager" || staffInfo?.role === "admin";
   return (
     <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
       {loading && <p className="p-6 text-sm" style={{ color: "#6B7280" }}>Cargando lotes…</p>}
@@ -580,6 +579,9 @@ function BatchList({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-[14px] truncate">{b.product_name}</p>
+                <p className="text-xs truncate" style={{ color: "#6B7280" }}>
+                  Código: {b.barcode}
+                </p>
                 <p className="text-xs" style={{ color: "#6B7280" }}>
                   {b.category ?? "Sin categoría"} · {b.store_name}
                 </p>
@@ -599,15 +601,13 @@ function BatchList({
               >
                 Editar
               </button>
-              {isManager && (
-                <button
-                  onClick={() => onDelete(b)}
-                  className="text-xs font-semibold px-3 py-1 rounded-lg"
-                  style={{ backgroundColor: "#FEE2E2", color: "#DC2626" }}
-                >
-                  Eliminar
-                </button>
-              )}
+              <button
+                onClick={() => onDelete(b)}
+                className="text-xs font-semibold px-3 py-1 rounded-lg"
+                style={{ backgroundColor: "#FEE2E2", color: "#DC2626" }}
+              >
+                Eliminar
+              </button>
             </div>
           </div>
         );

@@ -16,6 +16,7 @@ import BarcodeScanScreen from "./screens/BarcodeScanScreen";
 import BatchEntryScreen from "./screens/BatchEntryScreen";
 import NewProductScreen from "./screens/NewProductScreen";
 import StoreInventoryScreen from "./screens/StoreInventoryScreen";
+import BatchDetailScreen from "./screens/BatchDetailScreen";
 
 // Show notifications when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -32,6 +33,7 @@ export type RootStackParamList = {
   BatchEntry: { product: any };
   NewProduct: { barcode: string };
   StoreInventory: undefined;
+  BatchDetail: { batchId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -124,6 +126,11 @@ function AppNavigator() {
               name="StoreInventory"
               component={StoreInventoryScreen}
               options={{ title: "Mi tienda" }}
+            />
+            <Stack.Screen
+              name="BatchDetail"
+              component={BatchDetailScreen}
+              options={{ title: "Detalle del lote" }}
             />
           </>
         ) : (
