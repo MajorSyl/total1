@@ -73,6 +73,16 @@ function initials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 }
 
+// Formats a "YYYY-MM-DD" date string as "DD/MM/YYYY" (Venezuelan convention).
+// Reformats the string directly rather than going through a Date object,
+// since parsing a date-only string as UTC and rendering it in a UTC-4
+// timezone can roll the displayed date back by one day.
+function formatDate(isoDate: string | null | undefined): string {
+  if (!isoDate) return "—";
+  const [y, m, d] = isoDate.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : isoDate;
+}
+
 // ---- Main Component ----
 
 export default function DashboardPage() {
@@ -575,7 +585,7 @@ function BatchList({
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-xs font-mono mb-1" style={{ color: "#6B7280" }}>{b.expiry_date}</p>
+                <p className="text-xs font-mono mb-1" style={{ color: "#6B7280" }}>{formatDate(b.expiry_date)}</p>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: fg, backgroundColor: bg }}>
                   {label}
                 </span>
@@ -660,7 +670,7 @@ function AlertsView({
                   </span>
                 </div>
                 <p className="text-xs" style={{ color: "#6B7280" }}>
-                  {product?.barcode} · vence {a.batches?.expiry_date} · umbral {a.threshold_days}d
+                  {product?.barcode} · vence {formatDate(a.batches?.expiry_date)} · umbral {a.threshold_days}d
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: "#9CA3AF" }}>
                   {a.sent_at

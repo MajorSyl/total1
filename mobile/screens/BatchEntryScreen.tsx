@@ -57,11 +57,24 @@ export default function BatchEntryScreen({ route, navigation }: any) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      const { data: staffRow } = await supabase
+      if (!user) {
+        Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para continuar.");
+        return;
+      }
+
+      const { data: staffRow, error: staffError } = await supabase
         .from("staff")
         .select("id, store_id")
-        .eq("auth_user_id", user?.id)
+        .eq("auth_user_id", user.id)
         .single();
+
+      if (staffError || !staffRow) {
+        Alert.alert(
+          "Cuenta no configurada",
+          "Tu perfil de personal ya no está disponible. Pídele a un administrador que verifique tu cuenta."
+        );
+        return;
+      }
 
       const { error } = await supabase.from("batches").insert({
         product_id: product.id,

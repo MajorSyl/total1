@@ -35,6 +35,15 @@ function initials(name: string) {
     .join("");
 }
 
+// Formats a "YYYY-MM-DD" date string as "DD/MM/YYYY" (Venezuelan convention).
+// Reformats the string directly rather than going through a Date object,
+// since parsing a date-only string as UTC and rendering it in a UTC-4
+// timezone can roll the displayed date back by one day.
+function formatDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : isoDate;
+}
+
 export default function StoreInventoryScreen() {
   const [batches, setBatches] = useState<BatchItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +144,7 @@ export default function StoreInventoryScreen() {
               <View style={styles.info}>
                 <Text style={styles.name} numberOfLines={1}>{b.product_name}</Text>
                 <Text style={styles.meta}>
-                  {b.category ?? "Sin categoría"} · {b.quantity} unid. · vence {b.expiry_date}
+                  {b.category ?? "Sin categoría"} · {b.quantity} unid. · vence {formatDate(b.expiry_date)}
                 </Text>
               </View>
               <View style={[styles.chip, { backgroundColor: bg }]}>

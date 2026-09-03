@@ -115,8 +115,11 @@ total1/
 ├── rls_policies.sql            # RLS policies — run after schema.sql
 ├── migration_complete.sql      # Both of the above, combined, plus seed data
 ├── worker_setup.sql            # link_staff(), access view, cron, cleanup
-├── send-expiry-alerts/
+├── supabase/functions/send-expiry-alerts/
 │   └── index.ts                # Edge Function — push + email digests
+│                                # (this is the path `supabase functions deploy`
+│                                #  actually reads by convention — don't add a
+│                                #  second copy elsewhere, it will silently drift)
 ├── mobile/                     # Expo app: login → scan → register batch
 │   ├── App.tsx
 │   ├── lib/supabase.ts
@@ -307,7 +310,8 @@ from `migration_complete.sql`.
 
 **Edge function reports no pending alerts when alerts exist**
 PostgREST silently returns zero rows for three-level nested joins on fresh
-projects. `send-expiry-alerts/index.ts` splits the query in two to avoid this —
+projects. `supabase/functions/send-expiry-alerts/index.ts` splits the query in
+two to avoid this —
 don't recombine them.
 
 ---
