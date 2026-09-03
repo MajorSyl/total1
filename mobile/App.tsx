@@ -3,6 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -37,6 +38,13 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function confirmSignOut() {
+  Alert.alert("¿Cerrar sesión?", "Tendrás que iniciar sesión de nuevo para escanear.", [
+    { text: "Cancelar", style: "cancel" },
+    { text: "Cerrar sesión", style: "destructive", onPress: () => supabase.auth.signOut() },
+  ]);
+}
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -125,7 +133,16 @@ function AppNavigator() {
             <Stack.Screen
               name="StoreInventory"
               component={StoreInventoryScreen}
-              options={{ title: "Mi tienda" }}
+              options={{
+                title: "Mi tienda",
+                headerRight: () => (
+                  <TouchableOpacity onPress={confirmSignOut} style={{ paddingHorizontal: 4 }}>
+                    <Text style={{ color: "#DC2626", fontWeight: "600", fontSize: 14 }}>
+                      Cerrar sesión
+                    </Text>
+                  </TouchableOpacity>
+                ),
+              }}
             />
             <Stack.Screen
               name="BatchDetail"
