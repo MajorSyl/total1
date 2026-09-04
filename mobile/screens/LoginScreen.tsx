@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { supabase } from "../lib/supabase";
 
 async function registerPushToken(staffId: string) {
@@ -22,9 +23,11 @@ async function registerPushToken(staffId: string) {
       finalStatus = status;
     }
     if (finalStatus !== "granted") return;
-    // getExpoPushTokenAsync requires the EAS projectId to be configured in app.json
-    // (run 'eas update:configure' once, then rebuild — this will start working automatically)
-    const token = await Notifications.getExpoPushTokenAsync();
+    // Passed explicitly rather than relying on auto-detection, which is
+    // unreliable outside Expo Go (e.g. in EAS/standalone builds).
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
     await supabase
       .from("staff")
       .update({ push_token: token.data })
